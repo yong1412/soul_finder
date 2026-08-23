@@ -1,15 +1,52 @@
 import 'package:flutter/material.dart';
-import 'views/map_radar_view.dart'; // MOVED: MapRadarView moved to lib/views/map_radar_view.dart
-import 'views/nearby_users_list_view.dart'; // MOVED: NearbyUsersListView moved to lib/views/nearby_users_list_view.dart
-import 'views/chat_list_view.dart'; // MOVED: ChatListView moved to lib/views/chat_list_view.dart
-import 'views/user_dashboard_view.dart'; // MOVED: UserDashboardView moved to lib/views/user_dashboard_view.dart
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+import 'firebase_options.dart';
+
+import 'controllers/auth_controller.dart';
+import 'services/auth_service.dart';
+import 'views/auth/login_view.dart';
+import 'views/chat_list_view.dart';
+import 'views/map_radar_view.dart';
+import 'views/nearby_users_list_view.dart';
+import 'views/user_dashboard_view.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final AuthController authController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    authController = AuthController(
+      AuthService(),
+    );
+
+    authController.initialize();
+  }
+
+  @override
+  void dispose() {
+    authController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,37 +71,80 @@ class MyApp extends StatelessWidget {
           backgroundColor: const Color(0xFF1E293B),
           indicatorColor: const Color(0xFF3B82F6).withOpacity(0.25),
           labelTextStyle: WidgetStateProperty.all(
-            const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white70),
+            const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
           ),
-          iconTheme: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return const IconThemeData(color: Color(0xFF3B82F6));
-            }
-            return const IconThemeData(color: Colors.white54);
-          }),
+          iconTheme: WidgetStateProperty.resolveWith(
+                (states) {
+              if (states.contains(WidgetState.selected)) {
+                return const IconThemeData(
+                  color: Color(0xFF3B82F6),
+                );
+              }
+
+              return const IconThemeData(
+                color: Colors.white54,
+              );
+            },
+          ),
         ),
       ),
-      home: const MainNavigationScreen(),
+      home: ListenableBuilder(
+        listenable: authController,
+        builder: (context, child) {
+          if (authController.isInitializing) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          if (authController.currentUser == null) {
+            return LoginView(
+              controller: authController,
+            );
+          }
+
+          return MainNavigationScreen(
+            authController: authController,
+          );
+        },
+      ),
     );
   }
 }
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  const MainNavigationScreen({
+    super.key,
+    required this.authController,
+  });
+
+  final AuthController authController;
 
   @override
-  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+  State<MainNavigationScreen> createState() {
+    return _MainNavigationScreenState();
+  }
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    const MapRadarView(), // MOVED: MapRadarView instantiation (defined in lib/views/map_radar_view.dart)
-    const NearbyUsersListView(), // MOVED: NearbyUsersListView instantiation (defined in lib/views/nearby_users_list_view.dart)
-    const ChatListView(), // MOVED: ChatListView instantiation (defined in lib/views/chat_list_view.dart)
-    const UserDashboardView(), // MOVED: UserDashboardView instantiation (defined in lib/views/user_dashboard_view.dart)
-  ];
+  List<Widget> get _screens {
+    return [
+      const MapRadarView(),
+      const NearbyUsersListView(),
+      const ChatListView(),
+      UserDashboardView(
+        controller: widget.authController,
+      ),
+    ];
+  }
 
   final List<String> _titles = [
     'Radar',
@@ -85,18 +165,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       appBar: AppBar(
         title: Text(
           _titles[_selectedIndex],
-          style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
         ),
         centerTitle: true,
-        actions: [
-          if (_selectedIndex == 3)
-            IconButton(
-              icon: const Icon(Icons.settings_outlined, color: Colors.white70),
-              onPressed: () {},
-            )
-        ],
       ),
-      body: _screens[_selectedIndex],
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onItemTapped,
@@ -126,11 +205,3 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 }
-
-// ---------------------------------------------------------
-// CODE CHANGES SUMMARY:
-// ---------------------------------------------------------
-// REMOVED: MapRadarView class was moved to lib/views/map_radar_view.dart
-// REMOVED: NearbyUsersListView class was moved to lib/views/nearby_users_list_view.dart
-// REMOVED: ChatListView class was moved to lib/views/chat_list_view.dart
-// REMOVED: UserDashboardView class was moved to lib/views/user_dashboard_view.dart
