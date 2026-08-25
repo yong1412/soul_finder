@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/meeting_venue.dart';
 import '../services/chat_service.dart';
 import '../services/match_service.dart';
 import '../widgets/match_meeting_map.dart';
@@ -131,13 +132,20 @@ class _MeetSoulViewState extends State<MeetSoulView> {
     setState(() => _isSending = true);
 
     try {
-      await _chatService.sendTextMessage(
+      final location = result['location'] ?? '';
+      final isLink = location.startsWith('http');
+
+      await _chatService.sendMeetingProposal(
         targetUserUid: widget.targetUserUid,
-        text: '📍 MEETING PLACE SUGGESTION\n'
-            'Place: ${result['name']}\n'
-            'Category: $category\n'
-            'Location: ${result['location']}\n'
-            'Please reply ACCEPT or DECLINE.',
+        venue: MeetingVenue(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: result['name'] ?? 'Meeting place',
+          category: category,
+          address: isLink ? 'See map link' : location,
+          latitude: 0,
+          longitude: 0,
+          mapsUrl: isLink ? location : '',
+        ),
       );
 
       if (!mounted) return;

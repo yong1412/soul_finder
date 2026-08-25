@@ -6,7 +6,6 @@ import '../controllers/auth_controller.dart';
 import '../services/match_service.dart';
 import '../services/profile_stats_service.dart';
 import 'chat_list_view.dart';
-import 'map_radar_view.dart';
 import 'nearby_users_list_view.dart';
 import 'profile/edit_profile_view.dart';
 import 'profile_viewers_view.dart';

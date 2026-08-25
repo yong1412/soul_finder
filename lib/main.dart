@@ -7,8 +7,6 @@ import 'controllers/auth_controller.dart';
 import 'services/auth_service.dart';
 import 'views/auth/login_view.dart';
 import 'views/chat_list_view.dart';
-import 'views/like_notifications_view.dart';
-import 'views/radar/radar_view.dart';
 import 'views/nearby_users_list_view.dart';
 import 'views/user_dashboard_view.dart';
 
@@ -70,7 +68,7 @@ class _MyAppState extends State<MyApp> {
         ),
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: const Color(0xFF1E293B),
-          indicatorColor: const Color(0xFF3B82F6).withOpacity(0.25),
+          indicatorColor: const Color(0xFF3B82F6).withValues(alpha: 0.25),
           labelTextStyle: WidgetStateProperty.all(
             const TextStyle(
               fontSize: 12,
