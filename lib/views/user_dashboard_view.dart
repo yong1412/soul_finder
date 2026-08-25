@@ -3,7 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../controllers/auth_controller.dart';
+import '../services/match_service.dart';
+import '../services/profile_stats_service.dart';
+import 'chat_list_view.dart';
+import 'map_radar_view.dart';
+import 'nearby_users_list_view.dart';
 import 'profile/edit_profile_view.dart';
+import 'profile_viewers_view.dart';
 
 class UserDashboardView extends StatelessWidget {
   const UserDashboardView({
@@ -12,6 +18,10 @@ class UserDashboardView extends StatelessWidget {
   });
 
   final AuthController controller;
+
+  static final MatchService _matchService = MatchService();
+  static final ProfileStatsService _profileStatsService =
+  ProfileStatsService();
 
   Future<void> _confirmSignOut(
       BuildContext context,
@@ -444,31 +454,99 @@ class UserDashboardView extends StatelessWidget {
     );
   }
 
+  void _openMatches(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('My Matches'),
+            centerTitle: true,
+          ),
+          body: const ChatListView(),
+        ),
+      ),
+    );
+  }
+
+  void _openNearYou(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('Near You'),
+            centerTitle: true,
+          ),
+          body: const NearbyUsersListView(),
+        ),
+      ),
+    );
+  }
+
+  void _openProfileViews(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileViewersView(),
+      ),
+    );
+  }
+
   Widget _buildStatItem({
-    required String value,
+    required Stream<int> stream,
     required String label,
+    required VoidCallback onTap,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+    return StreamBuilder<int>(
+      stream: stream,
+      initialData: 0,
+      builder: (context, snapshot) {
+        return Semantics(
+          button: true,
+          label: 'Open $label list',
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    snapshot.hasError ? '—' : '${snapshot.data ?? 0}',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white54,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 15,
+                        color: Colors.white38,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.white54,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -590,8 +668,9 @@ class UserDashboardView extends StatelessWidget {
               children: [
                 Expanded(
                   child: _buildStatItem(
-                    value: '12',
+                    stream: _profileStatsService.watchMatchCount(),
                     label: 'Matches',
+                    onTap: () => _openMatches(context),
                   ),
                 ),
 
@@ -605,8 +684,11 @@ class UserDashboardView extends StatelessWidget {
 
                 Expanded(
                   child: _buildStatItem(
-                    value: '4',
+                    stream: _matchService
+                        .watchCandidates()
+                        .map((candidates) => candidates.length),
                     label: 'Near You',
+                    onTap: () => _openNearYou(context),
                   ),
                 ),
 
@@ -620,8 +702,9 @@ class UserDashboardView extends StatelessWidget {
 
                 Expanded(
                   child: _buildStatItem(
-                    value: '89',
+                    stream: _profileStatsService.watchProfileViewCount(),
                     label: 'Views',
+                    onTap: () => _openProfileViews(context),
                   ),
                 ),
               ],

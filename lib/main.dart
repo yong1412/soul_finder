@@ -7,6 +7,7 @@ import 'controllers/auth_controller.dart';
 import 'services/auth_service.dart';
 import 'views/auth/login_view.dart';
 import 'views/chat_list_view.dart';
+import 'views/like_notifications_view.dart';
 import 'views/radar/radar_view.dart';
 import 'views/nearby_users_list_view.dart';
 import 'views/user_dashboard_view.dart';
@@ -137,7 +138,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   List<Widget> get _screens {
     return [
-      const RadarView(),
+      const MapRadarView(),
       const NearbyUsersListView(),
       const ChatListView(),
       UserDashboardView(
