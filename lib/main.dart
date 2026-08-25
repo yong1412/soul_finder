@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:soul_finder/views/radar/radar_view.dart';
 
 import 'firebase_options.dart';
 
@@ -136,7 +137,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   List<Widget> get _screens {
     return [
-      const MapRadarView(),
+      const RadarView(),
       const NearbyUsersListView(),
       const ChatListView(),
       UserDashboardView(

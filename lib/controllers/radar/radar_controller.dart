@@ -57,14 +57,46 @@ class RadarController extends ChangeNotifier {
     isScanning = true;
     notifyListeners();
 
-    final stations = await _transportService.getNearbyStations(
+    var stations = await _transportService.getNearbyStations(
       position.latitude,
       position.longitude
     );
 
+    // If API returns no stations (e.g. invalid API key or no real stations nearby), 
+    // provide some mock LRT/MRT stations for testing/demo purposes.
+    if (stations.isEmpty) {
+      stations = _generateMockStations(position);
+    }
+
     isScanning = false;
     _generateSoulsFromHotspots(position, stations);
     notifyListeners();
+  }
+
+  List<Station> _generateMockStations(Position pos) {
+    return [
+      Station(
+        id: 'mock_lrt_1',
+        name: 'KLCC LRT Station (Mock)',
+        latitude: pos.latitude + 0.002,
+        longitude: pos.longitude + 0.001,
+        type: StationType.lrt,
+      ),
+      Station(
+        id: 'mock_mrt_1',
+        name: 'Bukit Bintang MRT (Mock)',
+        latitude: pos.latitude - 0.003,
+        longitude: pos.longitude + 0.004,
+        type: StationType.mrt,
+      ),
+      Station(
+        id: 'mock_bus_1',
+        name: 'Pavi Bus Stop (Mock)',
+        latitude: pos.latitude + 0.001,
+        longitude: pos.longitude - 0.002,
+        type: StationType.bus,
+      ),
+    ];
   }
 
   void _generateSoulsFromHotspots(Position current, List<Station> stations) {
@@ -86,27 +118,27 @@ class RadarController extends ChangeNotifier {
         nearestStation = station;
       }
 
-      if (distance < 0.5) {
+      if (distance <= 0.2) { // Only detect souls if within 200m
         currentStationHotspot = station;
         _addToRecentStations(station);
-      }
 
-      int soulsAtStation = 1 + random.nextInt(3);
-      for (int i = 0; i < soulsAtStation; i++) {
-        double offsetLat = (random.nextDouble() - 0.5) * 0.005;
-        final double offsetLng = (random.nextDouble() - 0.5) * 0.005;
+        int soulsAtStation = 1 + random.nextInt(3);
+        for (int i = 0; i < soulsAtStation; i++) {
+          double offsetLat = (random.nextDouble() - 0.5) * 0.005;
+          final double offsetLng = (random.nextDouble() - 0.5) * 0.005;
 
-        double relativeLat = (station.latitude + offsetLat) - current.latitude;
-        double relativeLng = (station.longitude + offsetLng) - current.longitude;
+          double relativeLat = (station.latitude + offsetLat) - current.latitude;
+          double relativeLng = (station.longitude + offsetLng) - current.longitude;
 
-        double radarDist = math.sqrt(relativeLat * relativeLat + relativeLng * relativeLng) * 1000;
-        double angle = math.atan2(relativeLat, relativeLng);
+          double radarDist = math.sqrt(relativeLat * relativeLat + relativeLng * relativeLng) * 1000;
+          double angle = math.atan2(relativeLat, relativeLng);
 
-        dots.add(RadarDot(
-          distance: (radarDist / 60).clamp(0.1, 0.95),
-          angle: angle,
-          size: 4.0 + random.nextDouble() * 4,
-        ));
+          dots.add(RadarDot(
+            distance: (radarDist / 60).clamp(0.1, 0.95),
+            angle: angle,
+            size: 4.0 + random.nextDouble() * 4,
+          ));
+        }
       }
     }
     soulsFound = dots.length;

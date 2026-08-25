@@ -224,49 +224,91 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                       gradient: LinearGradient(colors: [theme.primary, theme.secondary]),
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
-                        BoxShadow(color: theme.secondary.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)
+                        BoxShadow(color: theme.secondary.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 1)
                       ],
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.stars, color: Colors.white, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "ACTIVE HOTSPOT: ${_controller.currentStationHotspot?.name}",
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
-                            overflow: TextOverflow.ellipsis,
+                    child: _controller.currentStationHotspot == null 
+                      ? const SizedBox.shrink()
+                      : Row(
+                        children: [
+                          const Icon(Icons.stars, color: Colors.white, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "ACTIVE HOTSPOT: ${_controller.currentStationHotspot?.name}",
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        const Text("BONUS LUCK", style: TextStyle(color: Colors.white70, fontSize: 10)),
-                      ],
-                    ),
+                          const Text("BONUS LUCK", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                        ],
+                      ),
                   ),
 
                   // 距离最近站点显示
-                  if (_controller.nearestStation != null && _controller.minDistanceToStation != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.directions_bus, size: 14, color: theme.primary.withOpacity(0.7)),
-                          const SizedBox(width: 6),
-                          Text(
-                            "Nearest: ${_controller.nearestStation!.name} ",
-                            style: const TextStyle(fontSize: 12, color: Colors.white70),
-                          ),
-                          Text(
-                            "(${(_controller.minDistanceToStation! * 1000).toInt()}m)",
-                            style: TextStyle(
-                              fontSize: 12, 
-                              color: _controller.minDistanceToStation! < 0.5 ? theme.secondary : theme.primary,
-                              fontWeight: FontWeight.bold
-                            ),
-                          ),
-                        ],
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12.0),
+                    child: Builder(
+                      builder: (context) {
+                        if (_controller.isScanning) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: theme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                "Scanning for nearby stations...",
+                                style: TextStyle(fontSize: 12, color: Colors.white38),
+                              ),
+                            ],
+                          );
+                        }
+
+                        if (_controller.nearestStation != null && _controller.minDistanceToStation != null) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _controller.nearestStation!.type == StationType.bus 
+                                    ? Icons.directions_bus 
+                                    : Icons.train, 
+                                size: 14, 
+                                color: theme.primary.withValues(alpha: 0.7)
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  "Nearest: ${_controller.nearestStation!.name} ",
+                                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                "(${(_controller.minDistanceToStation! * 1000).toInt()}m)",
+                                style: TextStyle(
+                                  fontSize: 12, 
+                                  color: _controller.minDistanceToStation! < 0.5 ? theme.secondary : theme.primary,
+                                  fontWeight: FontWeight.bold
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+
+                        return const Text(
+                          "No stations detected in range",
+                          style: TextStyle(fontSize: 12, color: Colors.white24),
+                        );
+                      },
                     ),
+                  ),
                 ],
               ),
             ),
@@ -275,7 +317,8 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
             Expanded(
               child: Stack(
                 children: [
-                  Center(
+                  Align(
+                    alignment: const Alignment(0, -0.75),
                     child: Container(
                       width: 320,
                       height: 320,
@@ -336,7 +379,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
 
                   // Bottom Stats
                   Positioned(
-                    bottom: 30,
+                    bottom: 20,
                     left: 0,
                     right: 0,
                     child: Column(
@@ -347,77 +390,130 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                             style: const TextStyle(fontSize: 10, color: Colors.white38),
                           ),
                         const SizedBox(height: 10),
-                        Text(
-                          _controller.soulsFound > 0 
-                            ? "Detected ${_controller.soulsFound} potential ${_controller.scanMode.first == 'couple' ? 'matches' : 'friends'}" 
-                            : "Scanning for nearby souls...",
-                          style: TextStyle(
-                            fontSize: 14, 
-                            color: _controller.scanMode.first == 'couple' ? theme.secondary : Colors.white70,
-                            fontWeight: FontWeight.bold
-                          ),
+                        Builder(
+                          builder: (context) {
+                            if (_controller.soulsFound > 0) {
+                              return Text(
+                                "Detected ${_controller.soulsFound} potential ${_controller.scanMode.first == 'couple' ? 'matches' : 'friends'}",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: theme.secondary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            }
+                            
+                            if (_controller.minDistanceToStation != null && _controller.minDistanceToStation! > 0.2) {
+                              return const Column(
+                                children: [
+                                  Text(
+                                    "TOO FAR FROM STATION",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.orangeAccent,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    "Get within 200m to detect nearby souls",
+                                    style: TextStyle(fontSize: 11, color: Colors.white38),
+                                  ),
+                                ],
+                              );
+                            }
+
+                            return const Text(
+                              "Scanning for nearby souls...",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.white70,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
                         ),
 
                         // 最近站点按钮区域
                         const SizedBox(height: 25),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 40),
-                          child: InkWell(
-                            onTap: () {
-                              if (_controller.recentStations.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("No recent hotspots visited yet! Keep moving to discover."),
-                                    duration: Duration(seconds: 2),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              } else {
-                                _showHistoryModal();
-                              }
-                            },
-                            borderRadius: BorderRadius.circular(15),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                              decoration: BoxDecoration(
-                                color: _controller.recentStations.isEmpty 
-                                    ? Colors.white.withOpacity(0.05) 
-                                    : theme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(
-                                  color: _controller.recentStations.isEmpty ? Colors.white10 : theme.primary.withOpacity(0.3)
+                          child: Column(
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _controller.isScanning || _controller.currentPosition == null
+                                    ? null
+                                    : () => _controller.performRadarScan(_controller.currentPosition!),
+                                icon: const Icon(Icons.gps_fixed),
+                                label: const Text("PULSE LOCATION"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: theme.primary.withValues(alpha: 0.2),
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(double.infinity, 50),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                  side: BorderSide(color: theme.primary.withValues(alpha: 0.5)),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.history_toggle_off, 
-                                    size: 18, 
-                                    color: _controller.recentStations.isEmpty ? Colors.white24 : theme.primary
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    "VIEW RECENT HOTSPOTS",
-                                    style: TextStyle(
-                                      fontSize: 11, 
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.1,
-                                      color: _controller.recentStations.isEmpty ? Colors.white24 : Colors.white
+                              const SizedBox(height: 12),
+                              InkWell(
+                                onTap: () {
+                                  if (_controller.recentStations.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("No recent hotspots visited yet! Keep moving to discover."),
+                                        duration: Duration(seconds: 2),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  } else {
+                                    _showHistoryModal();
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(15),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                                  decoration: BoxDecoration(
+                                    color: _controller.recentStations.isEmpty 
+                                        ? Colors.white.withValues(alpha: 0.05) 
+                                        : theme.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(15),
+                                    border: Border.all(
+                                      color: _controller.recentStations.isEmpty ? Colors.white10 : theme.primary.withValues(alpha: 0.3)
                                     ),
                                   ),
-                                  if (_controller.recentStations.isNotEmpty) ...[
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(color: theme.primary, shape: BoxShape.circle),
-                                      child: Text("${_controller.recentStations.length}", style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
-                                    )
-                                  ]
-                                ],
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.history_toggle_off, 
+                                        size: 18, 
+                                        color: _controller.recentStations.isEmpty ? Colors.white24 : theme.primary
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        "VIEW RECENT HOTSPOTS",
+                                        style: TextStyle(
+                                          fontSize: 11, 
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.1,
+                                          color: _controller.recentStations.isEmpty ? Colors.white24 : Colors.white
+                                        ),
+                                      ),
+                                      if (_controller.recentStations.isNotEmpty) ...[
+                                        const Spacer(),
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(color: theme.primary, shape: BoxShape.circle),
+                                          child: Text("${_controller.recentStations.length}", style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                                        )
+                                      ]
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       ],
