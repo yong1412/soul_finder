@@ -25,3 +25,15 @@ class VisitRecord {
     required this.timestamp,
   });
 }
+
+class RadarDot {
+  final double distance;
+  final double angle;
+  final double size;
+
+  RadarDot({
+    required this.distance,
+    required this.angle,
+    required this.size,
+  });
+}
