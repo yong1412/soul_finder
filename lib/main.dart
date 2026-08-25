@@ -1,23 +1,23 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:soul_finder/views/radar/radar_view.dart';
+
+import 'firebase_options.dart';
 
 import 'controllers/auth_controller.dart';
-import 'firebase_options.dart';
 import 'services/auth_service.dart';
-import 'services/chat_service.dart';
-import 'services/match_service.dart';
 import 'views/auth/login_view.dart';
 import 'views/chat_list_view.dart';
-import 'views/like_notifications_view.dart';
-import 'views/map_radar_view.dart';
 import 'views/nearby_users_list_view.dart';
 import 'views/user_dashboard_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const MyApp());
 }
 
@@ -34,7 +34,11 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    authController = AuthController(AuthService());
+
+    authController = AuthController(
+      AuthService(),
+    );
+
     authController.initialize();
   }
 
@@ -58,9 +62,34 @@ class _MyAppState extends State<MyApp> {
           surface: Color(0xFF1E293B),
         ),
         useMaterial3: true,
+        fontFamily: 'Roboto',
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0F172A),
           elevation: 0,
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF1E293B),
+          indicatorColor: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+          labelTextStyle: WidgetStateProperty.all(
+            const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
+          ),
+          iconTheme: WidgetStateProperty.resolveWith(
+                (states) {
+              if (states.contains(WidgetState.selected)) {
+                return const IconThemeData(
+                  color: Color(0xFF3B82F6),
+                );
+              }
+
+              return const IconThemeData(
+                color: Colors.white54,
+              );
+            },
+          ),
         ),
       ),
       home: ListenableBuilder(
@@ -68,13 +97,21 @@ class _MyAppState extends State<MyApp> {
         builder: (context, child) {
           if (authController.isInitializing) {
             return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
             );
           }
-          if (!authController.isAuthenticated) {
-            return LoginView(controller: authController);
+
+          if (authController.currentUser == null) {
+            return LoginView(
+              controller: authController,
+            );
           }
-          return MainNavigationScreen(authController: authController);
+
+          return MainNavigationScreen(
+            authController: authController,
+          );
         },
       ),
     );
@@ -90,30 +127,37 @@ class MainNavigationScreen extends StatefulWidget {
   final AuthController authController;
 
   @override
-  State<MainNavigationScreen> createState() =>
-      _MainNavigationScreenState();
+  State<MainNavigationScreen> createState() {
+    return _MainNavigationScreenState();
+  }
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
-  final MatchService _matchService = MatchService();
-  final ChatService _chatService = ChatService();
 
-  List<Widget> get _screens => [
-    const MapRadarView(),
-    const NearbyUsersListView(),
-    LikeNotificationsView(),
-    const ChatListView(),
-    UserDashboardView(controller: widget.authController),
-  ];
+  List<Widget> get _screens {
+    return [
+      const RadarView(),
+      const NearbyUsersListView(),
+      const ChatListView(),
+      UserDashboardView(
+        controller: widget.authController,
+      ),
+    ];
+  }
 
-  static const List<String> _titles = [
+  final List<String> _titles = [
     'Radar',
     'Nearby Souls',
-    'Likes',
     'Messages',
     'My Profile',
   ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +165,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       appBar: AppBar(
         title: Text(
           _titles[_selectedIndex],
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
         ),
         centerTitle: true,
       ),
@@ -131,66 +178,30 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
-        },
-        destinations: [
-          const NavigationDestination(
+        onDestinationSelected: _onItemTapped,
+        destinations: const [
+          NavigationDestination(
             icon: Icon(Icons.radar_outlined),
             selectedIcon: Icon(Icons.radar),
             label: 'Radar',
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.people_alt_outlined),
             selectedIcon: Icon(Icons.people),
             label: 'Discover',
           ),
           NavigationDestination(
-            icon: StreamBuilder<int>(
-              stream: _matchService.watchUnreadNotificationCount(),
-              initialData: 0,
-              builder: (context, snapshot) {
-                final count = snapshot.data ?? 0;
-                return Badge(
-                  isLabelVisible: count > 0,
-                  label: Text(count > 9 ? '9+' : '$count'),
-                  child: const Icon(Icons.favorite_border),
-                );
-              },
-            ),
-            selectedIcon: const Icon(Icons.favorite),
-            label: 'Likes',
-          ),
-          NavigationDestination(
-            icon: _buildChatIcon(selected: false),
-            selectedIcon: _buildChatIcon(selected: true),
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
             label: 'Chat',
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildChatIcon({required bool selected}) {
-    return StreamBuilder<int>(
-      stream: _chatService.watchTotalUnreadCount(),
-      initialData: 0,
-      builder: (context, snapshot) {
-        final count = snapshot.data ?? 0;
-
-        return Badge(
-          isLabelVisible: count > 0,
-          label: Text(count > 99 ? '99+' : '$count'),
-          child: Icon(
-            selected ? Icons.chat_bubble : Icons.chat_bubble_outline,
-          ),
-        );
-      },
     );
   }
 }

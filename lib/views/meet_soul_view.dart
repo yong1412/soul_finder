@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/meeting_venue.dart';
 import '../services/chat_service.dart';
 import '../services/match_service.dart';
 import '../widgets/match_meeting_map.dart';
@@ -23,6 +24,124 @@ class _MeetSoulViewState extends State<MeetSoulView> {
   final ChatService _chatService = ChatService();
 
   bool _isSending = false;
+  bool _isDiscoveryActive = false;
+  List<MeetingVenue> _discoveredVenues = [];
+
+  Future<void> _scanNearbyPlaces(MatchPairData pair) async {
+    if (_isDiscoveryActive) return;
+
+    setState(() {
+      _isDiscoveryActive = true;
+      _discoveredVenues = [];
+    });
+
+    // 模拟网络延迟，营造“扫描”氛围
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    final lat = pair.midpointLatitude!;
+    final lng = pair.midpointLongitude!;
+
+    // 在中点附近生成模拟的兴趣点 (POIs)
+    final mockPlaces = [
+      {'name': 'Soul Café', 'cat': 'Public café', 'offLat': 0.0015, 'offLng': 0.001},
+      {'name': 'Garden Mall', 'cat': 'Shopping mall', 'offLat': -0.001, 'offLng': 0.002},
+      {'name': 'Metro Library', 'cat': 'Library', 'offLat': 0.0008, 'offLng': -0.0015},
+      {'name': 'Skyline Restaurant', 'cat': 'Restaurant', 'offLat': -0.002, 'offLng': -0.001},
+    ];
+
+    final results = mockPlaces.map((p) {
+      final vLat = lat + (p['offLat'] as double);
+      final vLng = lng + (p['offLng'] as double);
+      return MeetingVenue(
+        id: 'mock_${DateTime.now().millisecondsSinceEpoch}_${p['name']}',
+        name: p['name'] as String,
+        category: p['cat'] as String,
+        address: 'Near the fair midpoint',
+        latitude: vLat,
+        longitude: vLng,
+        mapsUrl: 'https://www.google.com/maps/search/?api=1&query=$vLat,$vLng',
+      );
+    }).toList();
+
+    setState(() {
+      _discoveredVenues = results;
+      _isDiscoveryActive = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Radar scan complete! Safe places detected.'),
+        backgroundColor: Color(0xFF3B82F6),
+      ),
+    );
+  }
+
+  Future<void> _shareSelectedVenue(MeetingVenue venue) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Share this place?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              venue.name,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            Text(venue.category, style: const TextStyle(color: Color(0xFF3B82F6))),
+            const SizedBox(height: 12),
+            const Text(
+              'This location will be sent to your shared chat for confirmation.',
+              style: TextStyle(color: Colors.white60),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send to Chat'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isSending = true);
+      try {
+        await _chatService.sendMeetingProposal(
+          targetUserUid: widget.targetUserUid,
+          venue: venue,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Proposal for ${venue.name} sent!')),
+          );
+        }
+      } catch (e) {
+        if (mounted) _showError(e.toString());
+      } finally {
+        if (mounted) setState(() => _isSending = false);
+      }
+    }
+  }
+
+  void _showError(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
 
   Future<void> _shareMeetingPlace(String category) async {
     if (_isSending) return;
@@ -131,13 +250,20 @@ class _MeetSoulViewState extends State<MeetSoulView> {
     setState(() => _isSending = true);
 
     try {
-      await _chatService.sendTextMessage(
+      final location = result['location'] ?? '';
+      final isLink = location.startsWith('http');
+
+      await _chatService.sendMeetingProposal(
         targetUserUid: widget.targetUserUid,
-        text: '📍 MEETING PLACE SUGGESTION\n'
-            'Place: ${result['name']}\n'
-            'Category: $category\n'
-            'Location: ${result['location']}\n'
-            'Please reply ACCEPT or DECLINE.',
+        venue: MeetingVenue(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: result['name'] ?? 'Meeting place',
+          category: category,
+          address: isLink ? 'See map link' : location,
+          latitude: 0,
+          longitude: 0,
+          mapsUrl: isLink ? location : '',
+        ),
       );
 
       if (!mounted) return;
@@ -239,21 +365,32 @@ class _MeetSoulViewState extends State<MeetSoulView> {
             MatchMeetingMap(
               pair: pair,
               otherUserName: widget.soulName,
+              suggestedVenues: _discoveredVenues,
+              onVenueSelected: _shareSelectedVenue,
             ),
             const SizedBox(height: 12),
-            Card(
-              color: const Color(0xFF1E293B),
-              child: ListTile(
-                leading: const Icon(
-                  Icons.sync,
-                  color: Color(0xFF38BDF8),
-                ),
-                title: Text(
-                  distanceText,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: const Text(
-                  'Select a safe public meeting place near the midpoint.',
+            // Radar Scan Button
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _isDiscoveryActive ? null : () => _scanNearbyPlaces(pair),
+                icon: _isDiscoveryActive
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.radar),
+                label: Text(_isDiscoveryActive ? 'Scanning...' : 'Scan Near Midpoint'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF3B82F6),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),

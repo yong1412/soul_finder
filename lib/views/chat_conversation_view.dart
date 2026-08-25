@@ -26,20 +26,50 @@ class _ChatConversationViewState extends State<ChatConversationView> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  StreamSubscription<List<ChatMessage>>? _messageSubscription;
   bool _isSending = false;
   String? _lastReadMessageId;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_markConversationRead());
+    _setupMessageListener();
   }
 
   @override
   void dispose() {
+    _messageSubscription?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _setupMessageListener() {
+    _messageSubscription = _chatService
+        .watchMessages(widget.targetUserUid)
+        .listen((messages) {
+      if (messages.isEmpty) return;
+
+      final latestMessage = messages.last;
+      final currentUid = _chatService.currentUserUid;
+
+      // 1. Mark as read if receiving a new message while the view is active
+      if (latestMessage.receiverUid == currentUid &&
+          _lastReadMessageId != latestMessage.id) {
+        _lastReadMessageId = latestMessage.id;
+        unawaited(_markConversationRead());
+      }
+
+      // 2. Decide whether to scroll to bottom
+      final isMyMessage = latestMessage.senderUid == currentUid;
+      final isAtBottom = !_scrollController.hasClients ||
+          _scrollController.offset >=
+              _scrollController.position.maxScrollExtent - 100;
+
+      if (isMyMessage || isAtBottom) {
+        _scrollToBottom();
+      }
+    });
   }
 
   Future<void> _markConversationRead() async {
@@ -104,9 +134,12 @@ class _ChatConversationViewState extends State<ChatConversationView> {
   }
 
   Future<void> _respondToProposal(
-      ChatMessage message,
-      MeetingProposalStatus response,
-      ) async {
+    ChatMessage message,
+    MeetingProposalStatus response,
+  ) async {
+    if (_isSending) return;
+    setState(() => _isSending = true);
+
     try {
       await _chatService.respondToMeetingProposal(
         chatId: message.chatId,
@@ -115,6 +148,8 @@ class _ChatConversationViewState extends State<ChatConversationView> {
       );
     } catch (error) {
       _showError(error.toString());
+    } finally {
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
@@ -127,7 +162,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
         (parsedUri.scheme == 'https' || parsedUri.scheme == 'http');
 
     final Uri uri = isWebLink
-        ? parsedUri!
+        ? parsedUri
         : Uri.https(
       'www.google.com',
       '/maps/search/',
@@ -240,19 +275,11 @@ class _ChatConversationViewState extends State<ChatConversationView> {
                   );
                 }
 
-                final latestMessage = messages.last;
-                if (latestMessage.receiverUid ==
-                    _chatService.currentUserUid &&
-                    _lastReadMessageId != latestMessage.id) {
-                  _lastReadMessageId = latestMessage.id;
-                  unawaited(_markConversationRead());
-                }
-
-                _scrollToBottom();
-
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     return _buildMessage(messages[index]);
