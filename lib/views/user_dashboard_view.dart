@@ -462,7 +462,9 @@ class UserDashboardView extends StatelessWidget {
             title: const Text('My Matches'),
             centerTitle: true,
           ),
-          body: const ChatListView(),
+          body: ChatListView(
+            authController: controller,
+          ),
         ),
       ),
     );

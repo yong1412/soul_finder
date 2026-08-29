@@ -58,7 +58,7 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     _gender = user.gender;
     _lookingFor = user.lookingFor;
-    _radius = user.discoveryRadius;
+    _radius = (user.discoveryRadius * 1000).clamp(10.0, 200.0); // Convert km to m for UI
     _profileImageBase64 = user.profileImageBase64;
 
     if (_profileImageBase64.isNotEmpty) {
@@ -124,7 +124,7 @@ class _EditProfileViewState extends State<EditProfileView> {
           .where((item) => item.isNotEmpty)
           .toList(),
       lookingFor: _lookingFor,
-      discoveryRadius: _radius,
+      discoveryRadius: _radius / 1000, // Convert m back to km for storage
       profileImageBase64: _profileImageBase64,
     );
 
@@ -353,7 +353,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                             BorderRadius.circular(20),
                           ),
                           child: Text(
-                            '${_radius.round()} km',
+                            '${_radius.round()} m',
                             style: TextStyle(
                               color: theme.primary,
                               fontWeight:
@@ -366,10 +366,10 @@ class _EditProfileViewState extends State<EditProfileView> {
                     const SizedBox(height: 12),
                     Slider(
                       value: _radius,
-                      min: 1,
-                      max: 50,
-                      divisions: 49,
-                      label: '${_radius.round()} km',
+                      min: 10,
+                      max: 200,
+                      divisions: 19, // 10m increments
+                      label: '${_radius.round()} m',
                       onChanged: (value) {
                         setState(() {
                           _radius = value;
@@ -386,13 +386,13 @@ class _EditProfileViewState extends State<EditProfileView> {
                             .spaceBetween,
                         children: [
                           Text(
-                            '1 km',
+                            '10 m',
                             style: TextStyle(
                               color: Colors.white38,
                             ),
                           ),
                           Text(
-                            '50 km',
+                            '200 m',
                             style: TextStyle(
                               color: Colors.white38,
                             ),

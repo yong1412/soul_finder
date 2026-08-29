@@ -59,7 +59,7 @@ class AuthService {
         bio: 'Looking for meaningful connections',
         interests: interests,
         lookingFor: lookingFor,
-        discoveryRadius: 5,
+        discoveryRadius: 0.2,
         profileImageBase64: '',
       );
 
@@ -72,7 +72,7 @@ class AuthService {
         'bio': 'Looking for meaningful connections',
         'interests': interests,
         'lookingFor': lookingFor,
-        'discoveryRadius': 5.0,
+        'discoveryRadius': 0.2,
         'profileImageBase64': '',
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),

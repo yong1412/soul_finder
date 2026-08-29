@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../controllers/radar/radar_controller.dart';
+import '../../controllers/auth_controller.dart';
 import '../../models/radar/radar_models.dart';
 import 'radar_painter.dart';
 
 class RadarView extends StatefulWidget {
-  const RadarView({super.key});
+  const RadarView({
+    super.key,
+    required this.authController,
+  });
+
+  final AuthController authController;
 
   @override
   State<RadarView> createState() => _RadarViewState();
@@ -17,17 +23,35 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _controller = RadarController();
+    // Discovery Radius is stored in km in the profile, convert to meters for radar
+    final user = widget.authController.currentUser;
+    final initialRadius = user != null ? user.discoveryRadius * 1000 : 200.0;
+    
+    _controller = RadarController(initialRadius: initialRadius);
     _controller.startLocationTracking();
 
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
+
+    // Listen to profile changes to update radar radius dynamically
+    widget.authController.addListener(_onAuthChanged);
+  }
+
+  void _onAuthChanged() {
+    final user = widget.authController.currentUser;
+    if (user != null) {
+      final newRadiusMeters = user.discoveryRadius * 1000;
+      if (_controller.radarRadius != newRadiusMeters) {
+        _controller.setRadarRadius(newRadiusMeters);
+      }
+    }
   }
 
   @override
   void dispose() {
+    widget.authController.removeListener(_onAuthChanged);
     _animationController.dispose();
     _controller.dispose();
     super.dispose();
@@ -63,7 +87,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -151,7 +175,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                         final timeStr = "${record.timestamp.hour.toString().padLeft(2, '0')}:${record.timestamp.minute.toString().padLeft(2, '0')}";
                         return ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                             child: Icon(Icons.history, color: Theme.of(context).colorScheme.primary, size: 20),
                           ),
                           title: Text(record.station.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
@@ -208,11 +232,13 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                     style: SegmentedButton.styleFrom(
                       backgroundColor: theme.surface,
                       selectedBackgroundColor: _controller.scanMode.first == 'couple' 
-                          ? theme.secondary.withOpacity(0.3)
-                          : theme.primary.withOpacity(0.3),
-                      side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                          ? theme.secondary.withValues(alpha: 0.3)
+                          : theme.primary.withValues(alpha: 0.3),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
                     ),
                   ),
+
+                  const SizedBox(height: 12),
                   
                   // 热点状态条
                   AnimatedContainer(
@@ -276,9 +302,9 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                _controller.nearestStation!.type == StationType.bus 
-                                    ? Icons.directions_bus 
-                                    : Icons.train, 
+                                _controller.nearestStation!.type == StationType.bus
+                                    ? Icons.directions_bus
+                                    : Icons.train,
                                 size: 14, 
                                 color: theme.primary.withValues(alpha: 0.7)
                               ),
@@ -324,7 +350,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                       height: 320,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: theme.primary.withOpacity(0.1), width: 1),
+                        border: Border.all(color: theme.primary.withValues(alpha: 0.1), width: 1),
                         color: Colors.black12,
                       ),
                       child: Stack(
@@ -355,7 +381,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                               border: Border.all(color: Colors.white24, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: (_controller.scanMode.first == 'couple' ? theme.secondary : theme.primary).withOpacity(0.3),
+                                  color: (_controller.scanMode.first == 'couple' ? theme.secondary : theme.primary).withValues(alpha: 0.3),
                                   blurRadius: 15,
                                   spreadRadius: 2,
                                 ),

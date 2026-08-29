@@ -137,9 +137,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   List<Widget> get _screens {
     return [
-      const RadarView(),
+      RadarView(
+        authController: widget.authController,
+      ),
       const NearbyUsersListView(),
-      const ChatListView(),
+      ChatListView(
+        authController: widget.authController,
+      ),
       UserDashboardView(
         controller: widget.authController,
       ),

@@ -22,10 +22,33 @@ class _RegisterViewState extends State<RegisterView> {
   final _ageController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _interestController = TextEditingController();
 
   String _gender = 'Prefer not to say';
   String _lookingFor = 'Friendship';
+  final List<String> _selectedInterests = [];
+
+  final List<String> _interestOptions = const [
+    'Pet Lover',
+    'Music',
+    'Travel',
+    'Movies',
+    'Gaming',
+    'Foodie',
+    'Fitness',
+    'Reading',
+    'Photography',
+    'Art',
+    'Tech',
+    'Coding',
+    'Sports',
+    'Nature',
+    'Coffee',
+    'Hiking',
+    'Cooking',
+    'Dance',
+    'Yoga',
+    'Fashion',
+  ];
 
   bool _hidePassword = true;
   bool _hideConfirmPassword = true;
@@ -46,7 +69,6 @@ class _RegisterViewState extends State<RegisterView> {
     _ageController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _interestController.dispose();
     super.dispose();
   }
 
@@ -57,11 +79,12 @@ class _RegisterViewState extends State<RegisterView> {
       return;
     }
 
-    final interests = _interestController.text
-        .split(',')
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList();
+    if (_selectedInterests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one interest.')),
+      );
+      return;
+    }
 
     final success = await widget.controller.register(
       email: _emailController.text.trim(),
@@ -70,7 +93,7 @@ class _RegisterViewState extends State<RegisterView> {
       age: int.parse(_ageController.text.trim()),
       gender: _gender,
       lookingFor: _lookingFor,
-      interests: interests,
+      interests: _selectedInterests,
     );
 
     if (!mounted) {
@@ -279,26 +302,9 @@ class _RegisterViewState extends State<RegisterView> {
 
                         const SizedBox(height: 14),
 
-                        TextFormField(
-                          controller: _interestController,
-                          decoration: _inputDecoration(
-                            label: 'Interests',
-                            icon: Icons.interests_outlined,
-                            hint:
-                            'Music, hiking, movies',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '')
-                                .trim()
-                                .isEmpty) {
-                              return 'Enter at least one interest.';
-                            }
+                        _buildInterestsSection(colors),
 
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 24),
 
                         TextFormField(
                           controller: _passwordController,
@@ -468,6 +474,80 @@ class _RegisterViewState extends State<RegisterView> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildInterestsSection(ColorScheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.interests_outlined, color: theme.primary, size: 20),
+            const SizedBox(width: 12),
+            const Text(
+              'Interests',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.white70,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${_selectedInterests.length}/5',
+              style: TextStyle(
+                color: _selectedInterests.length >= 5 ? theme.secondary : Colors.white38,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _interestOptions.map((interest) {
+            final isSelected = _selectedInterests.contains(interest);
+            return FilterChip(
+              label: Text(interest),
+              selected: isSelected,
+              onSelected: (bool selected) {
+                setState(() {
+                  if (selected) {
+                    if (_selectedInterests.length < 5) {
+                      _selectedInterests.add(interest);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('You can select up to 5 interests only.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  } else {
+                    _selectedInterests.remove(interest);
+                  }
+                });
+              },
+              selectedColor: theme.primary.withOpacity(0.2),
+              checkmarkColor: theme.primary,
+              labelStyle: TextStyle(
+                color: isSelected ? theme.primary : Colors.white70,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              backgroundColor: const Color(0xFF1E293B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isSelected ? theme.primary : Colors.white.withOpacity(0.1),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

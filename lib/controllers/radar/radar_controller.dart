@@ -7,6 +7,8 @@ import '../../services/radar/location_service.dart';
 import '../../services/radar/transport_service.dart';
 
 class RadarController extends ChangeNotifier {
+  RadarController({double? initialRadius}) : radarRadius = initialRadius ?? 200.0;
+
   final LocationService _locationService = LocationService();
   final TransportService _transportService = TransportService();
 
@@ -19,12 +21,21 @@ class RadarController extends ChangeNotifier {
   Station? currentStationHotspot;
   double? minDistanceToStation;
   Station? nearestStation;
+  double radarRadius = 200.0; // Default to 200m
   final List<VisitRecord> recentStations = [];
 
   StreamSubscription<Position>? _positionSubscription;
 
   void setScanMode(Set<String> mode) {
     scanMode = mode;
+    if (currentPosition != null) {
+      performRadarScan(currentPosition!);
+    }
+    notifyListeners();
+  }
+
+  void setRadarRadius(double radius) {
+    radarRadius = radius;
     if (currentPosition != null) {
       performRadarScan(currentPosition!);
     }
@@ -118,7 +129,7 @@ class RadarController extends ChangeNotifier {
         nearestStation = station;
       }
 
-      if (distance <= 0.2) { // Only detect souls if within 200m
+      if (distance <= radarRadius / 1000.0) { // Use selected radarRadius
         currentStationHotspot = station;
         _addToRecentStations(station);
 
@@ -133,8 +144,9 @@ class RadarController extends ChangeNotifier {
           double radarDist = math.sqrt(relativeLat * relativeLat + relativeLng * relativeLng) * 1000;
           double angle = math.atan2(relativeLat, relativeLng);
 
+          // Normalize distance relative to radarRadius (outer edge of visual radar)
           dots.add(RadarDot(
-            distance: (radarDist / 60).clamp(0.1, 0.95),
+            distance: (radarDist / radarRadius).clamp(0.1, 0.98),
             angle: angle,
             size: 4.0 + random.nextDouble() * 4,
           ));
