@@ -217,6 +217,7 @@ class _ChatListViewState extends State<ChatListView> {
                   context,
                   MaterialPageRoute(
                     builder: (context) => ChannelConversationView(
+                      channelId: channel.id,
                       channelName: channel.name,
                       authController: widget.authController,
                     ),

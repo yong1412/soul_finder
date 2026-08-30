@@ -28,7 +28,7 @@ class _RegisterViewState extends State<RegisterView> {
   final List<String> _selectedInterests = [];
 
   final List<String> _interestOptions = const [
-    'Pet Lover',
+    'Pet Lovers',
     'Music',
     'Travel',
     'Movies',

@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 
 import 'controllers/auth_controller.dart';
 import 'services/auth_service.dart';
+import 'services/channel_service.dart';
 import 'views/auth/login_view.dart';
 import 'views/chat_list_view.dart';
 import 'views/nearby_users_list_view.dart';
@@ -134,6 +135,15 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize channels after user is logged in
+    ChannelService().initializeInterestChannels().catchError((e) {
+      debugPrint("Channel initialization skipped: $e");
+    });
+  }
 
   List<Widget> get _screens {
     return [

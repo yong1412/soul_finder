@@ -25,7 +25,25 @@ class _EditProfileViewState extends State<EditProfileView> {
   late final TextEditingController _nameController;
   late final TextEditingController _ageController;
   late final TextEditingController _bioController;
-  late final TextEditingController _interestsController;
+
+  late List<String> _selectedInterests;
+
+  final Map<String, String> _interestMapping = {
+    'Pet Lovers': 'pet_lovers',
+    'Tech Enthusiasts': 'tech_enthusiasts',
+    'Travelers': 'travelers',
+    'Music': 'music',
+    'Gaming': 'gaming',
+    'Movies': 'movies',
+    'Fitness': 'fitness',
+    'Foodie': 'foodie',
+    'Art': 'art',
+    'Photography': 'photography',
+    'Sports': 'sports',
+    'Cooking': 'cooking',
+  };
+
+  List<String> get _predefinedInterests => _interestMapping.keys.toList();
 
   late String _gender;
   late String _lookingFor;
@@ -52,9 +70,11 @@ class _EditProfileViewState extends State<EditProfileView> {
       text: user.bio,
     );
 
-    _interestsController = TextEditingController(
-      text: user.interests.join(', '),
-    );
+    _selectedInterests = user.interests.map((raw) {
+      return _interestMapping.entries
+          .firstWhere((e) => e.value == raw, orElse: () => MapEntry(raw, raw))
+          .key;
+    }).toList();
 
     _gender = user.gender;
     _lookingFor = user.lookingFor;
@@ -76,7 +96,6 @@ class _EditProfileViewState extends State<EditProfileView> {
     _nameController.dispose();
     _ageController.dispose();
     _bioController.dispose();
-    _interestsController.dispose();
     super.dispose();
   }
 
@@ -118,11 +137,7 @@ class _EditProfileViewState extends State<EditProfileView> {
       age: int.parse(_ageController.text.trim()),
       gender: _gender,
       bio: _bioController.text.trim(),
-      interests: _interestsController.text
-          .split(',')
-          .map((item) => item.trim())
-          .where((item) => item.isNotEmpty)
-          .toList(),
+      interests: _selectedInterests.map((name) => _interestMapping[name] ?? name).toList(),
       lookingFor: _lookingFor,
       discoveryRadius: _radius / 1000, // Convert m back to km for storage
       profileImageBase64: _profileImageBase64,
@@ -290,31 +305,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
-                      controller: _interestsController,
-                      label: 'Interests',
-                      icon: Icons.interests_outlined,
-                      hintText:
-                      'Music, Travel, Movies, Gaming',
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return 'Enter at least one interest.';
-                        }
-
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Separate interests using commas',
-                        style: TextStyle(
-                          color: Colors.white38,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
+                    _buildInterestsSelection(theme),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -545,6 +536,80 @@ class _EditProfileViewState extends State<EditProfileView> {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildInterestsSelection(ColorScheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.interests_outlined, size: 20, color: theme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Interests (${_selectedInterests.length}/6)',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8.0,
+          runSpacing: 4.0,
+          children: _predefinedInterests.map((interest) {
+            final isSelected = _selectedInterests.contains(interest);
+            return FilterChip(
+              label: Text(interest),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    if (_selectedInterests.length < 6) {
+                      _selectedInterests.add(interest);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Maximum 6 interests allowed'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  } else {
+                    _selectedInterests.remove(interest);
+                  }
+                });
+              },
+              selectedColor: theme.primary.withOpacity(0.2),
+              checkmarkColor: theme.primary,
+              labelStyle: TextStyle(
+                color: isSelected ? theme.primary : Colors.white70,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              backgroundColor: const Color(0xFF0F172A),
+              side: BorderSide(
+                color: isSelected ? theme.primary : Colors.white10,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            );
+          }).toList(),
+        ),
+        if (_selectedInterests.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 8.0),
+            child: Text(
+              'Please select at least one interest.',
+              style: TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ),
       ],
     );
   }
