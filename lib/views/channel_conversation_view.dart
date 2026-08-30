@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
+import '../services/image_upload_service.dart';
 import '../controllers/auth_controller.dart';
+import 'full_screen_image_view.dart';
 
 class ChannelConversationView extends StatefulWidget {
   const ChannelConversationView({
@@ -66,20 +68,58 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
 
   Future<void> _pickMedia(MessageType type) async {
     final XFile? file = type == MessageType.image 
-        ? await _picker.pickImage(source: ImageSource.gallery)
+        ? await _picker.pickImage(
+            source: ImageSource.gallery,
+            imageQuality: 70, // Compress a bit before upload
+          )
         : await _picker.pickVideo(source: ImageSource.gallery);
 
     if (file != null) {
-      // FOR TEST: We don't have Firebase Storage yet, so we use a placeholder URL
-      // In a real app, you would upload to Firebase Storage and get the URL
-      final dummyUrl = type == MessageType.image 
-          ? "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=500" // A cat image
-          : "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4"; // A sample video
+      if (type == MessageType.video) {
+        // Video upload is more complex, keeping dummy for now or showing not supported
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Video upload not implemented yet.')),
+        );
+        return;
+      }
 
-      await _sendMessage(
-        type: type,
-        mediaUrl: dummyUrl,
+      // Show uploading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: Card(
+            color: Color(0xFF1E293B),
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Uploading Image...', style: TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
+
+      try {
+        final imageUrl = await ImageUploadService.uploadImage(file);
+        
+        if (mounted) Navigator.pop(context); // Close loading dialog
+
+        await _sendMessage(
+          type: MessageType.image,
+          mediaUrl: imageUrl,
+        );
+      } catch (e) {
+        if (mounted) Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -184,15 +224,31 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (message.type == MessageType.image && message.mediaUrl != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            message.mediaUrl!,
-                            width: 200,
-                            height: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => 
-                              const Icon(Icons.broken_image, color: Colors.white24),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FullScreenImageView(
+                                  imageUrl: message.mediaUrl!,
+                                  heroTag: 'msg_${message.id}',
+                                ),
+                              ),
+                            );
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Hero(
+                              tag: 'msg_${message.id}',
+                              child: Image.network(
+                                message.mediaUrl!,
+                                width: 200,
+                                height: 200,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => 
+                                  const Icon(Icons.broken_image, color: Colors.white24),
+                              ),
+                            ),
                           ),
                         ),
                       if (message.type == MessageType.video && message.mediaUrl != null)

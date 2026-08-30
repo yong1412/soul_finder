@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../controllers/auth_controller.dart';
+import '../../models/interest_data.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({
@@ -26,29 +27,6 @@ class _RegisterViewState extends State<RegisterView> {
   String _gender = 'Prefer not to say';
   String _lookingFor = 'Friendship';
   final List<String> _selectedInterests = [];
-
-  final List<String> _interestOptions = const [
-    'Pet Lovers',
-    'Music',
-    'Travel',
-    'Movies',
-    'Gaming',
-    'Foodie',
-    'Fitness',
-    'Reading',
-    'Photography',
-    'Art',
-    'Tech',
-    'Coding',
-    'Sports',
-    'Nature',
-    'Coffee',
-    'Hiking',
-    'Cooking',
-    'Dance',
-    'Yoga',
-    'Fashion',
-  ];
 
   bool _hidePassword = true;
   bool _hideConfirmPassword = true;
@@ -93,7 +71,7 @@ class _RegisterViewState extends State<RegisterView> {
       age: int.parse(_ageController.text.trim()),
       gender: _gender,
       lookingFor: _lookingFor,
-      interests: _selectedInterests,
+      interests: _selectedInterests.map((label) => InterestData.getId(label)).toList(),
     );
 
     if (!mounted) {
@@ -508,7 +486,7 @@ class _RegisterViewState extends State<RegisterView> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _interestOptions.map((interest) {
+          children: InterestData.allLabels.map((interest) {
             final isSelected = _selectedInterests.contains(interest);
             return FilterChip(
               label: Text(interest),

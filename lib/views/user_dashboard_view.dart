@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../controllers/auth_controller.dart';
+import '../models/interest_data.dart';
 import '../services/match_service.dart';
 import '../services/profile_stats_service.dart';
 import 'chat_list_view.dart';
@@ -783,9 +784,9 @@ class UserDashboardView extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children:
-                  user.interests.map((interest) {
+                  user.interests.map((interestId) {
                     return Chip(
-                      label: Text(interest),
+                      label: Text(InterestData.getLabel(interestId)),
                       backgroundColor:
                       theme.primary.withValues(
                         alpha: 0.12,

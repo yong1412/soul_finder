@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/channel.dart';
+import '../models/interest_data.dart';
 
 class ChannelService {
   ChannelService({
@@ -23,26 +24,12 @@ class ChannelService {
       return;
     }
 
-    // Mapping of interest raw value to channel document ID
-    final interestToDocId = {
-      'Pet Lovers': 'pet_lovers',
-      'pet_lovers': 'pet_lovers',
-      'Tech': 'tech_enthusiasts',
-      'tech_enthusiasts': 'tech_enthusiasts',
-      'Travel': 'travelers',
-      'travelers': 'travelers',
-    };
-
-    // Since security rules might prevent listing the entire 'channels' collection,
-    // we fetch/watch each interested channel document individually.
-    
     // 1. Create the base list of channels based on user interests
-    final myChannels = interests.map((interest) {
-      final id = interestToDocId[interest] ?? interest;
+    final myChannels = interests.map((id) {
       return InterestChannel(
         id: id,
-        name: _capitalize(id.replaceAll('_', ' ')),
-        description: 'Global chat for $id',
+        name: InterestData.getLabel(id),
+        description: 'Global chat for ${InterestData.getLabel(id)}',
       );
     }).toList();
 
@@ -55,7 +42,16 @@ class ChannelService {
         try {
           final doc = await _firestore.collection('channels').doc(channel.id).get();
           if (doc.exists) {
-            return InterestChannel.fromFirestore(doc.id, doc.data()!);
+            final fromStore = InterestChannel.fromFirestore(doc.id, doc.data()!);
+            // Keep our local "pretty name" but take other details from store
+            return InterestChannel(
+              id: fromStore.id,
+              name: InterestData.getLabel(fromStore.id),
+              description: fromStore.description,
+              lastMessage: fromStore.lastMessage,
+              lastSenderName: fromStore.lastSenderName,
+              lastMessageAt: fromStore.lastMessageAt,
+            );
           }
         } catch (e) {
           // Silent failure for unauthorized channels
@@ -121,10 +117,14 @@ class ChannelService {
     batch.set(messageRef, message.toFirestore());
     
     // Update channel summary
+    final String lastMessageText = type == MessageType.image 
+        ? "Sent a photo 📷" 
+        : (type == MessageType.video ? "Sent a video 🎥" : text);
+
     batch.set(channelRef, {
       'name': channelName,
       'description': 'Global chat for $channelName lovers',
-      'lastMessage': text,
+      'lastMessage': lastMessageText,
       'lastSenderName': senderName,
       'lastMessageAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
