@@ -24,22 +24,25 @@ class FullScreenImageView extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Center(
+      body: SizedBox.expand(
         child: InteractiveViewer(
-          minScale: 0.5,
+          minScale: 1.0, // Changed from 0.5 to keep it full by default
           maxScale: 4.0,
+          clipBehavior: Clip.none, // Allow zooming without clipping if needed
           child: heroTag != null
               ? Hero(
                   tag: heroTag!,
-                  child: _buildImage(),
+                  child: _buildImage(context),
                 )
-              : _buildImage(),
+              : _buildImage(context),
         ),
       ),
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    
     // Check if the URL is actually a base64 string
     if (imageUrl.startsWith('data:image') || !imageUrl.startsWith('http')) {
       try {
@@ -48,6 +51,8 @@ class FullScreenImageView extends StatelessWidget {
             : imageUrl;
         return Image.memory(
           base64Decode(base64String),
+          width: size.width,
+          height: size.height,
           fit: BoxFit.contain,
         );
       } catch (e) {
@@ -57,6 +62,8 @@ class FullScreenImageView extends StatelessWidget {
 
     return Image.network(
       imageUrl,
+      width: size.width,
+      height: size.height,
       fit: BoxFit.contain,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;

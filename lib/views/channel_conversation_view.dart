@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
-import '../services/image_upload_service.dart';
+import '../services/cloudinary_service.dart';
 import '../controllers/auth_controller.dart';
 import 'full_screen_image_view.dart';
+import 'video_player_view.dart';
 
 class ChannelConversationView extends StatefulWidget {
   const ChannelConversationView({
@@ -67,37 +68,36 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
   }
 
   Future<void> _pickMedia(MessageType type) async {
-    final XFile? file = type == MessageType.image 
-        ? await _picker.pickImage(
+    final bool isVideo = type == MessageType.video;
+    final XFile? file = isVideo 
+        ? await _picker.pickVideo(
             source: ImageSource.gallery,
-            imageQuality: 70, // Compress a bit before upload
+            maxDuration: const Duration(seconds: 30),
           )
-        : await _picker.pickVideo(source: ImageSource.gallery);
+        : await _picker.pickImage(
+            source: ImageSource.gallery,
+            imageQuality: 70,
+          );
 
     if (file != null) {
-      if (type == MessageType.video) {
-        // Video upload is more complex, keeping dummy for now or showing not supported
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Video upload not implemented yet.')),
-        );
-        return;
-      }
-
       // Show uploading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
+        builder: (context) => Center(
           child: Card(
-            color: Color(0xFF1E293B),
+            color: const Color(0xFF1E293B),
             child: Padding(
-              padding: EdgeInsets.all(20.0),
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Uploading Image...', style: TextStyle(color: Colors.white)),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    isVideo ? 'Uploading Video (Max 30s)...' : 'Uploading Image...', 
+                    style: const TextStyle(color: Colors.white),
+                  ),
                 ],
               ),
             ),
@@ -106,18 +106,22 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
       );
 
       try {
-        final imageUrl = await ImageUploadService.uploadImage(file);
+        final mediaUrl = await CloudinaryService.uploadMedia(file, isVideo: isVideo);
         
         if (mounted) Navigator.pop(context); // Close loading dialog
 
         await _sendMessage(
-          type: MessageType.image,
-          mediaUrl: imageUrl,
+          type: type,
+          mediaUrl: mediaUrl,
         );
       } catch (e) {
         if (mounted) Navigator.pop(context); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text('Upload failed: $e'), 
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -252,15 +256,37 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
                           ),
                         ),
                       if (message.type == MessageType.video && message.mediaUrl != null)
-                        Container(
-                          width: 200,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.black26,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.play_circle_fill, size: 50, color: Colors.white70),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => VideoPlayerView(
+                                  videoUrl: message.mediaUrl!,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            width: 200,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.black26,
+                              borderRadius: BorderRadius.circular(8),
+                              image: DecorationImage(
+                                image: NetworkImage(CloudinaryService.getVideoThumbnail(message.mediaUrl!)),
+                                fit: BoxFit.cover,
+                                opacity: 0.6,
+                              ),
+                            ),
+                            child: const Center(
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Icon(Icons.play_circle_fill, size: 50, color: Colors.white),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       if (message.text.isNotEmpty)
