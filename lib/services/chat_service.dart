@@ -112,6 +112,20 @@ class ChatService {
     );
   }
 
+  Future<void> deleteMessage(ChatMessage message) async {
+    final uid = currentUserUid;
+    if (message.senderUid != uid) {
+      throw const ChatException('You can only delete your own messages.');
+    }
+
+    final createdAt = message.createdAt ?? DateTime.now();
+    if (DateTime.now().difference(createdAt).inSeconds > 180) {
+      throw const ChatException('Messages can only be deleted within 3 minutes of sending.');
+    }
+
+    await _messageCollection(message.chatId).doc(message.id).delete();
+  }
+
   Future<void> sendTextMessage({
     required String targetUserUid,
     required String text,

@@ -30,7 +30,14 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
+  late final Stream<List<ChannelMessage>> _messagesStream;
   bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _messagesStream = _channelService.watchMessages(widget.channelId);
+  }
 
   @override
   void dispose() {
@@ -89,15 +96,15 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
     }
   }
 
-  Future<void> _pickMedia(MessageType type) async {
+  Future<void> _pickMedia(MessageType type, ImageSource source) async {
     final bool isVideo = type == MessageType.video;
     final XFile? file = isVideo 
         ? await _picker.pickVideo(
-            source: ImageSource.gallery,
+            source: source,
             maxDuration: const Duration(seconds: 30),
           )
         : await _picker.pickImage(
-            source: ImageSource.gallery,
+            source: source,
             imageQuality: 70,
           );
 
@@ -120,7 +127,7 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
                   ],
                 ),
                 content: Text(
-                  'The selected video is ${duration.inSeconds} seconds long.\n\nPlease choose a video that is 30 seconds or shorter.',
+                  'The selected video is ${duration.inSeconds} seconds long.\n\nPlease choose or record a video that is 30 seconds or shorter.',
                   style: const TextStyle(color: Colors.white70),
                 ),
                 actions: [
@@ -202,7 +209,7 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
         children: [
           Expanded(
             child: StreamBuilder<List<ChannelMessage>>(
-              stream: _channelService.watchMessages(widget.channelId),
+              stream: _messagesStream,
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -241,6 +248,97 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
     );
   }
 
+  void _showMessageOptions(ChannelMessage message) {
+    final diffInSeconds = DateTime.now().difference(message.createdAt).inSeconds;
+    final bool canDelete = diffInSeconds <= 180; // 3 minutes limit
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.delete_outline,
+                  color: canDelete ? Colors.redAccent : Colors.white24,
+                ),
+                title: Text(
+                  'Delete Message',
+                  style: TextStyle(
+                    color: canDelete ? Colors.redAccent : Colors.white24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  canDelete
+                      ? 'You can delete this message within 3 minutes of sending'
+                      : 'Expired (sent over 3 minutes ago)',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+                onTap: canDelete
+                    ? () {
+                        Navigator.pop(context);
+                        _confirmDeleteMessage(message);
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteMessage(ChannelMessage message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Message?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Are you sure you want to delete this message for everyone in the channel?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _channelService.deleteMessage(widget.channelId, message);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Message deleted.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildMessageItem(ChannelMessage message) {
     final isMine = message.senderUid == widget.authController.currentUser?.uid;
     final profileImage = _decodeProfileImage(message.senderProfileImageBase64);
@@ -260,109 +358,112 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
             const SizedBox(width: 10),
           ],
           Flexible(
-            child: Column(
-              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                if (!isMine)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4, bottom: 4),
-                    child: Text(
-                      message.senderName,
-                      style: const TextStyle(fontSize: 11, color: Colors.white54, fontWeight: FontWeight.bold),
+            child: GestureDetector(
+              onLongPress: isMine ? () => _showMessageOptions(message) : null,
+              child: Column(
+                crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  if (!isMine)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 4),
+                      child: Text(
+                        message.senderName,
+                        style: const TextStyle(fontSize: 11, color: Colors.white54, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isMine ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMine ? 16 : 4),
-                      bottomRight: Radius.circular(isMine ? 4 : 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isMine ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMine ? 16 : 4),
+                        bottomRight: Radius.circular(isMine ? 4 : 16),
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (message.type == MessageType.image && message.mediaUrl != null)
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => FullScreenImageView(
-                                  imageUrl: message.mediaUrl!,
-                                  heroTag: 'msg_${message.id}',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (message.type == MessageType.image && message.mediaUrl != null)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => FullScreenImageView(
+                                    imageUrl: message.mediaUrl!,
+                                    heroTag: 'msg_${message.id}',
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Hero(
-                              tag: 'msg_${message.id}',
-                              child: Image.network(
-                                message.mediaUrl!,
-                                width: 200,
-                                height: 200,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => 
-                                  const Icon(Icons.broken_image, color: Colors.white24),
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (message.type == MessageType.video && message.mediaUrl != null)
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => VideoPlayerView(
-                                  videoUrl: message.mediaUrl!,
-                                ),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            width: 200,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: Colors.black26,
+                              );
+                            },
+                            child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              image: DecorationImage(
-                                image: NetworkImage(CloudinaryService.getVideoThumbnail(message.mediaUrl!)),
-                                fit: BoxFit.cover,
-                                opacity: 0.6,
-                              ),
-                            ),
-                            child: const Center(
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Icon(Icons.play_circle_fill, size: 50, color: Colors.white),
-                                ],
+                              child: Hero(
+                                tag: 'msg_${message.id}',
+                                child: Image.network(
+                                  message.mediaUrl!,
+                                  width: 200,
+                                  height: 200,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => 
+                                    const Icon(Icons.broken_image, color: Colors.white24),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      if (message.text.isNotEmpty)
-                        Padding(
-                          padding: EdgeInsets.only(top: message.mediaUrl != null ? 8.0 : 0.0),
-                          child: Text(message.text, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                        ),
-                    ],
+                        if (message.type == MessageType.video && message.mediaUrl != null)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VideoPlayerView(
+                                    videoUrl: message.mediaUrl!,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 200,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                color: Colors.black26,
+                                borderRadius: BorderRadius.circular(8),
+                                image: DecorationImage(
+                                  image: NetworkImage(CloudinaryService.getVideoThumbnail(message.mediaUrl!)),
+                                  fit: BoxFit.cover,
+                                  opacity: 0.6,
+                                ),
+                              ),
+                              child: const Center(
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Icon(Icons.play_circle_fill, size: 50, color: Colors.white),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (message.text.isNotEmpty)
+                          Padding(
+                            padding: EdgeInsets.only(top: message.mediaUrl != null ? 8.0 : 0.0),
+                            child: Text(message.text, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                  child: Text(
-                    "${message.createdAt.hour}:${message.createdAt.minute.toString().padLeft(2, '0')}",
-                    style: const TextStyle(fontSize: 9, color: Colors.white24),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+                    child: Text(
+                      "${message.createdAt.hour}:${message.createdAt.minute.toString().padLeft(2, '0')}",
+                      style: const TextStyle(fontSize: 9, color: Colors.white24),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           if (isMine) ...[
@@ -434,24 +535,41 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
       ),
       builder: (context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.image, color: Colors.blue),
-                title: const Text('Send Image'),
+                leading: const Icon(Icons.camera_alt, color: Colors.greenAccent),
+                title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickMedia(MessageType.image);
+                  _pickMedia(MessageType.image, ImageSource.camera);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.videocam, color: Colors.red),
-                title: const Text('Send Video'),
+                leading: const Icon(Icons.videocam, color: Colors.redAccent),
+                title: const Text('Record Video (Max 30s)', style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickMedia(MessageType.video);
+                  _pickMedia(MessageType.video, ImageSource.camera);
+                },
+              ),
+              const Divider(color: Colors.white10),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.blueAccent),
+                title: const Text('Choose Image from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickMedia(MessageType.image, ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.video_library, color: Colors.purpleAccent),
+                title: const Text('Choose Video from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickMedia(MessageType.video, ImageSource.gallery);
                 },
               ),
             ],

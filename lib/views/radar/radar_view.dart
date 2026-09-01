@@ -19,13 +19,16 @@ class RadarView extends StatefulWidget {
 class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMixin {
   late final RadarController _controller;
   late AnimationController _animationController;
+  bool _isRadiusExpanded = false;
 
   @override
   void initState() {
     super.initState();
-    // Discovery Radius is stored in km in the profile, convert to meters for radar
+    // Discovery Radius is stored in km in the profile, convert to meters for radar (50m - 200m)
     final user = widget.authController.currentUser;
-    final initialRadius = user != null ? user.discoveryRadius * 1000 : 200.0;
+    final initialRadius = user != null 
+        ? (user.discoveryRadius * 1000).clamp(50.0, 200.0) 
+        : 200.0;
     
     _controller = RadarController(initialRadius: initialRadius);
     _controller.startLocationTracking();
@@ -198,6 +201,365 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
     );
   }
 
+  Widget _buildRadiusPillButton(ColorScheme theme) {
+    final currentRadiusInt = _controller.radarRadius.round().clamp(50, 200);
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _isRadiusExpanded = !_isRadiusExpanded;
+        });
+      },
+      borderRadius: BorderRadius.circular(25),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: _isRadiusExpanded 
+              ? theme.primary.withValues(alpha: 0.25)
+              : theme.surface,
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(
+            color: _isRadiusExpanded 
+                ? theme.primary 
+                : Colors.white.withValues(alpha: 0.12),
+          ),
+          boxShadow: [
+            if (_isRadiusExpanded)
+              BoxShadow(
+                color: theme.primary.withValues(alpha: 0.2),
+                blurRadius: 10,
+                spreadRadius: 1,
+              )
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.tune,
+              size: 18,
+              color: theme.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              "${currentRadiusInt}m",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              _isRadiusExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              size: 18,
+              color: Colors.white54,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopControlRow(ColorScheme theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Mode Switch Button (Find Friends / Couple / Mix)
+              Flexible(child: _buildModeToggleButton(theme)),
+              const SizedBox(width: 10),
+              // Radius Expandable Pill Button
+              _buildRadiusPillButton(theme),
+            ],
+          ),
+
+          // Animated Expanded Slider Card
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Container(
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              decoration: BoxDecoration(
+                color: theme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: theme.primary.withValues(alpha: 0.4)),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.primary.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  )
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Discovery Radius",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        "${_controller.radarRadius.round()}m",
+                        style: TextStyle(
+                          color: theme.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 4,
+                      activeTrackColor: theme.primary,
+                      inactiveTrackColor: Colors.white10,
+                      thumbColor: theme.primary,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                    ),
+                    child: Slider(
+                      value: _controller.radarRadius.clamp(50.0, 200.0),
+                      min: 50.0,
+                      max: 200.0,
+                      divisions: 15,
+                      label: "${_controller.radarRadius.round()}m",
+                      onChanged: (double val) {
+                        _controller.setRadarRadius(val);
+                        final user = widget.authController.currentUser;
+                        if (user != null) {
+                          widget.authController.updateProfile(
+                            user.copyWith(discoveryRadius: val / 1000.0),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("50m", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                        Text("200m", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            crossFadeState: _isRadiusExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 250),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeToggleButton(ColorScheme theme) {
+    final mode = _controller.scanMode.isEmpty ? 'friends' : _controller.scanMode.first;
+    final isCouple = mode == 'couple';
+
+    final icon = isCouple ? Icons.favorite : Icons.people_alt;
+    final label = isCouple ? "Find Couple" : "Find Friends";
+    final activeColor = isCouple ? theme.secondary : theme.primary;
+    final gradient = isCouple
+        ? const LinearGradient(
+            colors: [Color(0xFFF43F5E), Color(0xFFBE123C)],
+          )
+        : const LinearGradient(
+            colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+          );
+
+    return InkWell(
+      onTap: () {
+        final nextMode = isCouple ? 'friends' : 'couple';
+        _controller.setScanMode({nextMode});
+      },
+      borderRadius: BorderRadius.circular(25),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: activeColor.withValues(alpha: 0.35),
+              blurRadius: 12,
+              spreadRadius: 1,
+              offset: const Offset(0, 3),
+            )
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.sync_alt, color: Colors.white70, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getModeColor(String mode, ColorScheme theme) {
+    if (mode == 'couple') return const Color(0xFFFF2D55); // Vibrant Crimson Red
+    return const Color(0xFF3B82F6); // Vibrant Electric Blue
+  }
+
+  IconData _getModeIcon(String mode) {
+    if (mode == 'couple') return Icons.favorite;
+    return Icons.person;
+  }
+
+  String _getModeSoulsLabel(String mode) {
+    if (mode == 'couple') return 'matches';
+    return 'friends';
+  }
+
+  Widget _buildCompactPulseButton(Color modeColor) {
+    final isScanning = _controller.isScanning;
+    final isDisabled = isScanning || _controller.currentPosition == null;
+
+    return InkWell(
+      onTap: isDisabled
+          ? null
+          : () => _controller.performRadarScan(_controller.currentPosition!),
+      borderRadius: BorderRadius.circular(15),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDisabled
+              ? Colors.white10
+              : modeColor.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isDisabled
+                ? Colors.white12
+                : modeColor.withValues(alpha: 0.5),
+          ),
+          boxShadow: [
+            if (!isDisabled)
+              BoxShadow(
+                color: modeColor.withValues(alpha: 0.18),
+                blurRadius: 10,
+                spreadRadius: 1,
+              )
+          ],
+        ),
+        child: isScanning
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(
+                Icons.gps_fixed,
+                size: 20,
+                color: modeColor,
+              ),
+      ),
+    );
+  }
+
+  Widget _buildRecentHotspotsButton(ColorScheme theme) {
+    final hasHotspots = _controller.recentStations.isNotEmpty;
+
+    return InkWell(
+      onTap: () {
+        if (!hasHotspots) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("No recent hotspots visited yet! Keep moving to discover."),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          _showHistoryModal();
+        }
+      },
+      borderRadius: BorderRadius.circular(15),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: !hasHotspots 
+              ? Colors.white.withValues(alpha: 0.05) 
+              : theme.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: !hasHotspots ? Colors.white10 : theme.primary.withValues(alpha: 0.3)
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.history_toggle_off, 
+              size: 18, 
+              color: !hasHotspots ? Colors.white24 : theme.primary
+            ),
+            const SizedBox(width: 8),
+            const Flexible(
+              child: Text(
+                "HOTSPOTS",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11, 
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            if (hasHotspots) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(color: theme.primary, shape: BoxShape.circle),
+                child: Text(
+                  "${_controller.recentStations.length}", 
+                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              )
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).colorScheme;
@@ -205,6 +567,9 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, child) {
+        final mode = _controller.scanMode.isEmpty ? 'friends' : _controller.scanMode.first;
+        final modeColor = _getModeColor(mode, theme);
+
         return Column(
           children: [
             // Top Selection Area
@@ -212,33 +577,8 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
               padding: const EdgeInsets.symmetric(vertical: 16.0),
               child: Column(
                 children: [
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment<String>(
-                        value: 'friends',
-                        label: Text('Find Friends'),
-                        icon: Icon(Icons.people_alt),
-                      ),
-                      ButtonSegment<String>(
-                        value: 'couple',
-                        label: Text('Find Couple'),
-                        icon: Icon(Icons.favorite),
-                      ),
-                    ],
-                    selected: _controller.scanMode,
-                    onSelectionChanged: (Set<String> newSelection) {
-                      _controller.setScanMode(newSelection);
-                    },
-                    style: SegmentedButton.styleFrom(
-                      backgroundColor: theme.surface,
-                      selectedBackgroundColor: _controller.scanMode.first == 'couple' 
-                          ? theme.secondary.withValues(alpha: 0.3)
-                          : theme.primary.withValues(alpha: 0.3),
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
+                  // Top Control Row (Mode Button + Radius Expandable Button side by side)
+                  _buildTopControlRow(theme),
                   
                   // 热点状态条
                   AnimatedContainer(
@@ -345,13 +685,21 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                 children: [
                   Align(
                     alignment: const Alignment(0, -0.75),
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
                       width: 320,
                       height: 320,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: theme.primary.withValues(alpha: 0.1), width: 1),
-                        color: Colors.black12,
+                        border: Border.all(color: modeColor.withValues(alpha: 0.4), width: 1.5),
+                        color: modeColor.withValues(alpha: 0.05),
+                        boxShadow: [
+                          BoxShadow(
+                            color: modeColor.withValues(alpha: 0.2),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
                       ),
                       child: Stack(
                         alignment: Alignment.center,
@@ -364,7 +712,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                                 size: const Size(300, 300),
                                 painter: RadarPainter(
                                   progress: _animationController.value,
-                                  color: _controller.scanMode.first == 'couple' ? theme.secondary : theme.primary,
+                                  color: modeColor,
                                   dots: _controller.dots,
                                 ),
                               );
@@ -372,7 +720,8 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                           ),
                           
                           // Center Icon
-                          Container(
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
                             height: 50,
                             width: 50,
                             decoration: BoxDecoration(
@@ -381,7 +730,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                               border: Border.all(color: Colors.white24, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: (_controller.scanMode.first == 'couple' ? theme.secondary : theme.primary).withValues(alpha: 0.3),
+                                  color: modeColor.withValues(alpha: 0.4),
                                   blurRadius: 15,
                                   spreadRadius: 2,
                                 ),
@@ -393,7 +742,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : Icon(
-                                  _controller.scanMode.first == 'couple' ? Icons.favorite : Icons.person,
+                                  _getModeIcon(mode),
                                   size: 24,
                                   color: Colors.white,
                                 ),
@@ -420,10 +769,10 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                           builder: (context) {
                             if (_controller.soulsFound > 0) {
                               return Text(
-                                "Detected ${_controller.soulsFound} potential ${_controller.scanMode.first == 'couple' ? 'matches' : 'friends'}",
+                                "Detected ${_controller.soulsFound} potential ${_getModeSoulsLabel(mode)}",
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: theme.secondary,
+                                  color: modeColor,
                                   fontWeight: FontWeight.bold,
                                 ),
                               );
@@ -461,84 +810,15 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                           },
                         ),
 
-                        // 最近站点按钮区域
-                        const SizedBox(height: 25),
+                        // 最近站点与定位脉冲按钮区域（并排）
+                        const SizedBox(height: 18),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 40),
-                          child: Column(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Row(
                             children: [
-                              ElevatedButton.icon(
-                                onPressed: _controller.isScanning || _controller.currentPosition == null
-                                    ? null
-                                    : () => _controller.performRadarScan(_controller.currentPosition!),
-                                icon: const Icon(Icons.gps_fixed),
-                                label: const Text("PULSE LOCATION"),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: theme.primary.withValues(alpha: 0.2),
-                                  foregroundColor: Colors.white,
-                                  minimumSize: const Size(double.infinity, 50),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                                  side: BorderSide(color: theme.primary.withValues(alpha: 0.5)),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              InkWell(
-                                onTap: () {
-                                  if (_controller.recentStations.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text("No recent hotspots visited yet! Keep moving to discover."),
-                                        duration: Duration(seconds: 2),
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  } else {
-                                    _showHistoryModal();
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(15),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-                                  decoration: BoxDecoration(
-                                    color: _controller.recentStations.isEmpty 
-                                        ? Colors.white.withValues(alpha: 0.05) 
-                                        : theme.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(15),
-                                    border: Border.all(
-                                      color: _controller.recentStations.isEmpty ? Colors.white10 : theme.primary.withValues(alpha: 0.3)
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.history_toggle_off, 
-                                        size: 18, 
-                                        color: _controller.recentStations.isEmpty ? Colors.white24 : theme.primary
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        "VIEW RECENT HOTSPOTS",
-                                        style: TextStyle(
-                                          fontSize: 11, 
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 1.1,
-                                          color: _controller.recentStations.isEmpty ? Colors.white24 : Colors.white
-                                        ),
-                                      ),
-                                      if (_controller.recentStations.isNotEmpty) ...[
-                                        const Spacer(),
-                                        Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(color: theme.primary, shape: BoxShape.circle),
-                                          child: Text("${_controller.recentStations.length}", style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
-                                        )
-                                      ]
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              _buildCompactPulseButton(modeColor),
+                              const SizedBox(width: 10),
+                              Expanded(child: _buildRecentHotspotsButton(theme)),
                             ],
                           ),
                         ),

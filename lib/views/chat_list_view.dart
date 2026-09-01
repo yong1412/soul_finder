@@ -23,8 +23,30 @@ class _ChatListViewState extends State<ChatListView> {
   final ChatService _chatService = ChatService();
   final ChannelService _channelService = ChannelService();
 
+  late final Stream<List<ChatPreview>> _directMessagesStream;
+  Stream<List<InterestChannel>>? _channelsStream;
+  List<String>? _lastInterests;
+
+  @override
+  void initState() {
+    super.initState();
+    _directMessagesStream = _chatService.watchChatPreviews();
+  }
+
+  void _updateChannelsStreamIfNeeded() {
+    final user = widget.authController.currentUser;
+    if (user != null) {
+      if (_channelsStream == null || _lastInterests != user.interests) {
+        _lastInterests = user.interests;
+        _channelsStream = _channelService.watchMyChannels(user.interests);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    _updateChannelsStreamIfNeeded();
+
     return DefaultTabController(
       length: 2,
       child: Column(
@@ -53,7 +75,7 @@ class _ChatListViewState extends State<ChatListView> {
 
   Widget _buildDirectMessagesTab() {
     return StreamBuilder<List<ChatPreview>>(
-      stream: _chatService.watchChatPreviews(),
+      stream: _directMessagesStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _buildErrorState(snapshot.error.toString());
@@ -152,7 +174,7 @@ class _ChatListViewState extends State<ChatListView> {
     if (user == null) return const SizedBox.shrink();
 
     return StreamBuilder<List<InterestChannel>>(
-      stream: _channelService.watchMyChannels(user.interests),
+      stream: _channelsStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _buildErrorState(snapshot.error.toString());

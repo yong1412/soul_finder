@@ -78,7 +78,7 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     _gender = user.gender;
     _lookingFor = user.lookingFor;
-    _radius = (user.discoveryRadius * 1000).clamp(10.0, 200.0); // Convert km to m for UI
+    _radius = (user.discoveryRadius * 1000).clamp(50.0, 200.0); // Convert km to m for UI
     _profileImageBase64 = user.profileImageBase64;
 
     if (_profileImageBase64.isNotEmpty) {
@@ -356,10 +356,10 @@ class _EditProfileViewState extends State<EditProfileView> {
                     ),
                     const SizedBox(height: 12),
                     Slider(
-                      value: _radius,
-                      min: 10,
+                      value: _radius.clamp(50.0, 200.0),
+                      min: 50,
                       max: 200,
-                      divisions: 19, // 10m increments
+                      divisions: 15, // 10m increments (50m - 200m)
                       label: '${_radius.round()} m',
                       onChanged: (value) {
                         setState(() {
@@ -377,7 +377,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                             .spaceBetween,
                         children: [
                           Text(
-                            '10 m',
+                            '50 m',
                             style: TextStyle(
                               color: Colors.white38,
                             ),

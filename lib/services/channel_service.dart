@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -16,60 +17,101 @@ class ChannelService {
 
   String get _currentUserUid => _auth.currentUser?.uid ?? '';
 
-  Stream<List<InterestChannel>> watchMyChannels(List<String> interests) async* {
+  Stream<List<InterestChannel>> watchMyChannels(List<String> interests) {
     debugPrint("DEBUG: User Interests in app: $interests");
 
     if (interests.isEmpty) {
-      yield [];
-      return;
+      return Stream.value([]);
     }
 
-    // 1. Create the base list of channels based on user interests
-    final myChannels = interests.map((id) {
-      return InterestChannel(
-        id: id,
-        name: InterestData.getLabel(id),
-        description: 'Global chat for ${InterestData.getLabel(id)}',
-      );
+    final channelStreams = interests.map((id) {
+      return _firestore
+          .collection('channels')
+          .doc(id)
+          .snapshots()
+          .map((doc) {
+            if (doc.exists && doc.data() != null) {
+              final fromStore = InterestChannel.fromFirestore(doc.id, doc.data()!);
+              return InterestChannel(
+                id: fromStore.id,
+                name: InterestData.getLabel(fromStore.id),
+                description: fromStore.description,
+                lastMessage: fromStore.lastMessage,
+                lastSenderName: fromStore.lastSenderName,
+                lastMessageAt: fromStore.lastMessageAt,
+              );
+            }
+            return InterestChannel(
+              id: id,
+              name: InterestData.getLabel(id),
+              description: 'Global chat for ${InterestData.getLabel(id)}',
+            );
+          })
+          .handleError((error) {
+            debugPrint("Channel permission/read error for $id: $error");
+            return InterestChannel(
+              id: id,
+              name: InterestData.getLabel(id),
+              description: 'Global chat for ${InterestData.getLabel(id)}',
+            );
+          });
     }).toList();
 
-    // 2. Yield initial state immediately
-    yield myChannels;
-
-    // 3. Fetch channel details if permitted
-    try {
-      final updatedChannels = await Future.wait(myChannels.map((channel) async {
-        try {
-          final doc = await _firestore.collection('channels').doc(channel.id).get();
-          if (doc.exists) {
-            final fromStore = InterestChannel.fromFirestore(doc.id, doc.data()!);
-            // Keep our local "pretty name" but take other details from store
-            return InterestChannel(
-              id: fromStore.id,
-              name: InterestData.getLabel(fromStore.id),
-              description: fromStore.description,
-              lastMessage: fromStore.lastMessage,
-              lastSenderName: fromStore.lastSenderName,
-              lastMessageAt: fromStore.lastMessageAt,
-            );
-          }
-        } catch (e) {
-          // Silent failure for unauthorized channels
-        }
-        return channel;
-      }));
-      yield updatedChannels;
-    } catch (e) {
-      // Ignore
-    }
+    return _combineChannelStreams(channelStreams, interests);
   }
 
-  String _capitalize(String text) {
-    if (text.isEmpty) return text;
-    return text.split(' ').map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1);
-    }).join(' ');
+  Stream<List<InterestChannel>> _combineChannelStreams(
+      List<Stream<InterestChannel>> streams, List<String> interests) {
+    late StreamController<List<InterestChannel>> controller;
+    final List<InterestChannel?> latestValues = List.filled(streams.length, null);
+    final List<StreamSubscription> subscriptions = [];
+
+    controller = StreamController<List<InterestChannel>>(
+      onListen: () {
+        final initial = interests.map((id) {
+          return InterestChannel(
+            id: id,
+            name: InterestData.getLabel(id),
+            description: 'Global chat for ${InterestData.getLabel(id)}',
+          );
+        }).toList();
+        controller.add(initial);
+
+        for (int i = 0; i < streams.length; i++) {
+          final index = i;
+          final sub = streams[index].listen(
+            (channel) {
+              latestValues[index] = channel;
+              if (!controller.isClosed) {
+                final currentList = <InterestChannel>[];
+                for (int j = 0; j < streams.length; j++) {
+                  currentList.add(
+                    latestValues[j] ??
+                        InterestChannel(
+                          id: interests[j],
+                          name: InterestData.getLabel(interests[j]),
+                          description: 'Global chat for ${InterestData.getLabel(interests[j])}',
+                        ),
+                  );
+                }
+                controller.add(currentList);
+              }
+            },
+            onError: (error) {
+              debugPrint("Error listening to channel stream $index: $error");
+            },
+          );
+          subscriptions.add(sub);
+        }
+      },
+      onCancel: () {
+        for (final sub in subscriptions) {
+          sub.cancel();
+        }
+      },
+    );
+
+    return controller.stream;
   }
 
   Stream<List<ChannelMessage>> watchMessages(String channelName) {
@@ -82,7 +124,29 @@ class ChannelService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => ChannelMessage.fromDocument(doc))
-            .toList());
+            .toList())
+        .handleError((error) {
+          debugPrint("Error watching channel messages for $channelName: $error");
+          return <ChannelMessage>[];
+        });
+  }
+
+  Future<void> deleteMessage(String channelName, ChannelMessage message) async {
+    final uid = _currentUserUid;
+    if (uid.isEmpty || message.senderUid != uid) {
+      throw Exception('You can only delete your own messages.');
+    }
+
+    if (DateTime.now().difference(message.createdAt).inSeconds > 180) {
+      throw Exception('Messages can only be deleted within 3 minutes of sending.');
+    }
+
+    await _firestore
+        .collection('channels')
+        .doc(channelName)
+        .collection('messages')
+        .doc(message.id)
+        .delete();
   }
 
   Future<void> sendMessage({

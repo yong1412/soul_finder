@@ -359,27 +359,122 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     }
   }
 
+  void _showMessageOptions(ChatMessage message) {
+    final createdAt = message.createdAt ?? DateTime.now();
+    final diffInSeconds = DateTime.now().difference(createdAt).inSeconds;
+    final bool canDelete = diffInSeconds <= 180; // 3 minutes limit
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.delete_outline,
+                  color: canDelete ? Colors.redAccent : Colors.white24,
+                ),
+                title: Text(
+                  'Delete Message',
+                  style: TextStyle(
+                    color: canDelete ? Colors.redAccent : Colors.white24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  canDelete
+                      ? 'You can delete this message within 3 minutes of sending'
+                      : 'Expired (sent over 3 minutes ago)',
+                  style: const TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+                onTap: canDelete
+                    ? () {
+                        Navigator.pop(context);
+                        _confirmDeleteMessage(message);
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteMessage(ChatMessage message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Message?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Are you sure you want to delete this message?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _chatService.deleteMessage(message);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Message deleted.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildTextMessage(ChatMessage message) {
     final isMine = message.senderUid == _chatService.currentUserUid;
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 320),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-        decoration: BoxDecoration(
-          color: isMine
-              ? const Color(0xFF2563EB)
-              : const Color(0xFF1E293B),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(isMine ? 18 : 4),
-            bottomRight: Radius.circular(isMine ? 4 : 18),
+      child: GestureDetector(
+        onLongPress: isMine ? () => _showMessageOptions(message) : null,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 320),
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            color: isMine
+                ? const Color(0xFF2563EB)
+                : const Color(0xFF1E293B),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(isMine ? 18 : 4),
+              bottomRight: Radius.circular(isMine ? 4 : 18),
+            ),
           ),
+          child: Text(message.text),
         ),
-        child: Text(message.text),
       ),
     );
   }
