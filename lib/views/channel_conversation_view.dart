@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:media_kit/media_kit.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../services/cloudinary_service.dart';
@@ -59,11 +60,32 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
       );
       _messageController.clear();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<Duration> _getVideoDuration(String filePath) async {
+    final player = Player();
+    try {
+      await player.open(Media(filePath), play: false);
+      final duration = await player.stream.duration
+          .firstWhere((d) => d > Duration.zero)
+          .timeout(
+            const Duration(seconds: 3),
+            onTimeout: () => player.state.duration,
+          );
+      return duration;
+    } catch (e) {
+      debugPrint("Error reading video duration: $e");
+      return Duration.zero;
+    } finally {
+      await player.dispose();
     }
   }
 
@@ -80,6 +102,42 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
           );
 
     if (file != null) {
+      if (isVideo) {
+        // Validate video duration
+        final duration = await _getVideoDuration(file.path);
+        if (duration > const Duration(seconds: 30, milliseconds: 500)) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: const Color(0xFF1E293B),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
+                    SizedBox(width: 8),
+                    Text('Video Too Long', style: TextStyle(color: Colors.white, fontSize: 18)),
+                  ],
+                ),
+                content: Text(
+                  'The selected video is ${duration.inSeconds} seconds long.\n\nPlease choose a video that is 30 seconds or shorter.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK', style: TextStyle(color: Color(0xFF3B82F6), fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+          return; // Cancel upload if video exceeds 30 seconds
+        }
+      }
+
+      if (!mounted) return;
+
       // Show uploading indicator
       showDialog(
         context: context,
