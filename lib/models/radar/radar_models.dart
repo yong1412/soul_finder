@@ -1,4 +1,4 @@
-enum StationType { bus, lrt, mrt }
+enum StationType { lrt, mrt }
 
 class Station {
   final String id;
@@ -24,6 +24,32 @@ class VisitRecord {
     required this.station,
     required this.timestamp,
   });
+}
+
+class StationStayRecord {
+  final Station station;
+  DateTime firstSeen;
+  DateTime lastSeen;
+  int totalDurationMinutes;
+  int visitCount;
+
+  StationStayRecord({
+    required this.station,
+    required this.firstSeen,
+    required this.lastSeen,
+    this.totalDurationMinutes = 1,
+    this.visitCount = 1,
+  });
+
+  String get formattedDuration {
+    if (totalDurationMinutes < 1) return "< 1 min";
+    final hours = totalDurationMinutes ~/ 60;
+    final mins = totalDurationMinutes % 60;
+    if (hours > 0) {
+      return "${hours}h ${mins}m";
+    }
+    return "${mins}m";
+  }
 }
 
 class RadarDot {

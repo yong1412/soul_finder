@@ -163,9 +163,13 @@ class MatchService {
           continue;
         }
 
+        // Radar discovery radius is 50m - 200m (0.05 km - 0.2 km)
+        final effectiveRadiusKm = currentProfile.discoveryRadius.clamp(0.05, 0.2);
+
         final distance = _distanceBetween(currentProfile, other);
-        if (distance != null &&
-            distance > currentProfile.discoveryRadius) {
+
+        // Filter out users who do not have valid location OR are outside the radar range (50m - 200m)
+        if (distance == null || distance > effectiveRadiusKm) {
           continue;
         }
 
@@ -413,6 +417,37 @@ class MatchService {
     });
   }
 
+  Future<MatchCandidate?> getCandidateForUid(String targetUid) async {
+    final currentUid = _requireCurrentUid();
+    final currentDoc = await _users.doc(currentUid).get();
+    final targetDoc = await _users.doc(targetUid).get();
+
+    if (!currentDoc.exists || !targetDoc.exists || targetDoc.data() == null) {
+      return null;
+    }
+
+    final currentProfile = UserProfile.fromJson(currentDoc.data()!);
+    final targetProfile = UserProfile.fromJson(targetDoc.data()!);
+
+    final distance = _distanceBetween(currentProfile, targetProfile);
+    final commonInterests = _commonInterests(
+      currentProfile.interests,
+      targetProfile.interests,
+    );
+
+    return MatchCandidate(
+      profile: targetProfile,
+      distanceKm: distance,
+      commonInterests: commonInterests,
+      compatibilityScore: _compatibilityScore(
+        currentProfile,
+        targetProfile,
+        distance,
+        commonInterests.length,
+      ),
+    );
+  }
+
   double? _distanceBetween(UserProfile first, UserProfile second) {
     if (!first.hasLocation || !second.hasLocation) {
       return null;
@@ -448,9 +483,9 @@ class MatchService {
         ? 0.0
         : commonInterestCount / maximumInterestCount;
 
-    final radius = max(current.discoveryRadius, 1.0);
+    final radius = current.discoveryRadius.clamp(0.05, 0.2);
     final distanceScore = distance == null
-        ? 0.5
+        ? 0.0
         : 1 - min(distance / radius, 1.0);
 
     final purposeScore = current.lookingFor == 'Both' ||

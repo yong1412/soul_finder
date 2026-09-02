@@ -163,9 +163,12 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
     final displayName = profile.age > 0
         ? '${profile.name}, ${profile.age}'
         : profile.name;
+    final isHighMatch = candidate.compatibilityScore >= 80;
     final distanceText = candidate.distanceKm == null
         ? 'Unavailable'
-        : '${candidate.distanceKm!.toStringAsFixed(1)} km';
+        : candidate.distanceKm! < 1.0
+            ? '${(candidate.distanceKm! * 1000).round()} m'
+            : '${candidate.distanceKm!.toStringAsFixed(1)} km';
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
@@ -242,6 +245,7 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                   child: _ProfileStat(
                     value: '${candidate.compatibilityScore.round()}%',
                     label: 'Compatible',
+                    valueColor: isHighMatch ? const Color(0xFF10B981) : null,
                   ),
                 ),
                 const _VerticalDivider(),
@@ -460,10 +464,12 @@ class _ProfileStat extends StatelessWidget {
   const _ProfileStat({
     required this.value,
     required this.label,
+    this.valueColor,
   });
 
   final String value;
   final String label;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -473,9 +479,10 @@ class _ProfileStat extends StatelessWidget {
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
+            color: valueColor ?? Colors.white,
           ),
         ),
         const SizedBox(height: 5),

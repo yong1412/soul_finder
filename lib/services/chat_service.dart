@@ -509,7 +509,7 @@ class ChatService {
       });
 
       return previews;
-    });
+    }).asBroadcastStream();
   }
 
   Stream<int> watchTotalUnreadCount() {

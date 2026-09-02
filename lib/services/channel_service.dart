@@ -24,94 +24,41 @@ class ChannelService {
       return Stream.value([]);
     }
 
-    final channelStreams = interests.map((id) {
-      return _firestore
-          .collection('channels')
-          .doc(id)
-          .snapshots()
-          .map((doc) {
-            if (doc.exists && doc.data() != null) {
-              final fromStore = InterestChannel.fromFirestore(doc.id, doc.data()!);
-              return InterestChannel(
-                id: fromStore.id,
-                name: InterestData.getLabel(fromStore.id),
-                description: fromStore.description,
-                lastMessage: fromStore.lastMessage,
-                lastSenderName: fromStore.lastSenderName,
-                lastMessageAt: fromStore.lastMessageAt,
-              );
-            }
+    final validInterests = interests.take(30).toList();
+
+    return _firestore
+        .collection('channels')
+        .where(FieldPath.documentId, whereIn: validInterests)
+        .snapshots()
+        .map((snapshot) {
+          final docMap = {
+            for (var doc in snapshot.docs)
+              doc.id: InterestChannel.fromFirestore(doc.id, doc.data())
+          };
+
+          return interests.map((id) {
+            final storeChannel = docMap[id];
+            return InterestChannel(
+              id: id,
+              name: InterestData.getLabel(id),
+              description: storeChannel?.description ?? 'Global chat for ${InterestData.getLabel(id)}',
+              lastMessage: storeChannel?.lastMessage,
+              lastSenderName: storeChannel?.lastSenderName,
+              lastMessageAt: storeChannel?.lastMessageAt,
+            );
+          }).toList();
+        })
+        .handleError((error) {
+          debugPrint("Error watching interest channels: $error");
+          return interests.map((id) {
             return InterestChannel(
               id: id,
               name: InterestData.getLabel(id),
               description: 'Global chat for ${InterestData.getLabel(id)}',
             );
-          })
-          .handleError((error) {
-            debugPrint("Channel permission/read error for $id: $error");
-            return InterestChannel(
-              id: id,
-              name: InterestData.getLabel(id),
-              description: 'Global chat for ${InterestData.getLabel(id)}',
-            );
-          });
-    }).toList();
-
-    return _combineChannelStreams(channelStreams, interests);
-  }
-
-  Stream<List<InterestChannel>> _combineChannelStreams(
-      List<Stream<InterestChannel>> streams, List<String> interests) {
-    late StreamController<List<InterestChannel>> controller;
-    final List<InterestChannel?> latestValues = List.filled(streams.length, null);
-    final List<StreamSubscription> subscriptions = [];
-
-    controller = StreamController<List<InterestChannel>>(
-      onListen: () {
-        final initial = interests.map((id) {
-          return InterestChannel(
-            id: id,
-            name: InterestData.getLabel(id),
-            description: 'Global chat for ${InterestData.getLabel(id)}',
-          );
-        }).toList();
-        controller.add(initial);
-
-        for (int i = 0; i < streams.length; i++) {
-          final index = i;
-          final sub = streams[index].listen(
-            (channel) {
-              latestValues[index] = channel;
-              if (!controller.isClosed) {
-                final currentList = <InterestChannel>[];
-                for (int j = 0; j < streams.length; j++) {
-                  currentList.add(
-                    latestValues[j] ??
-                        InterestChannel(
-                          id: interests[j],
-                          name: InterestData.getLabel(interests[j]),
-                          description: 'Global chat for ${InterestData.getLabel(interests[j])}',
-                        ),
-                  );
-                }
-                controller.add(currentList);
-              }
-            },
-            onError: (error) {
-              debugPrint("Error listening to channel stream $index: $error");
-            },
-          );
-          subscriptions.add(sub);
-        }
-      },
-      onCancel: () {
-        for (final sub in subscriptions) {
-          sub.cancel();
-        }
-      },
-    );
-
-    return controller.stream;
+          }).toList();
+        })
+        .asBroadcastStream();
   }
 
   Stream<List<ChannelMessage>> watchMessages(String channelName) {

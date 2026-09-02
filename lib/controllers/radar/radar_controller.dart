@@ -23,6 +23,17 @@ class RadarController extends ChangeNotifier {
   Station? nearestStation;
   double radarRadius = 200.0; // Default to 200m
   final List<VisitRecord> recentStations = [];
+  final Map<String, StationStayRecord> stationStayStats = {};
+
+  List<StationStayRecord> get topStayStations {
+    final list = stationStayStats.values.toList();
+    list.sort((a, b) {
+      final cmp = b.totalDurationMinutes.compareTo(a.totalDurationMinutes);
+      if (cmp != 0) return cmp;
+      return b.lastSeen.compareTo(a.lastSeen);
+    });
+    return list;
+  }
 
   StreamSubscription<Position>? _positionSubscription;
 
@@ -100,13 +111,6 @@ class RadarController extends ChangeNotifier {
         longitude: pos.longitude + 0.004,
         type: StationType.mrt,
       ),
-      Station(
-        id: 'mock_bus_1',
-        name: 'Pavi Bus Stop (Mock)',
-        latitude: pos.latitude + 0.001,
-        longitude: pos.longitude - 0.002,
-        type: StationType.bus,
-      ),
     ];
   }
 
@@ -132,6 +136,7 @@ class RadarController extends ChangeNotifier {
       if (distance <= radarRadius / 1000.0) { // Use selected radarRadius
         currentStationHotspot = station;
         _addToRecentStations(station);
+        _recordStationStay(station);
 
         int soulsAtStation = 1 + random.nextInt(3);
         for (int i = 0; i < soulsAtStation; i++) {
@@ -164,6 +169,28 @@ class RadarController extends ChangeNotifier {
         c(lat1 * p) * c(lat2 * p) *
             (1 - c((lon2 - lon1) * p)) / 2;
     return 12742 * math.asin(math.sqrt(a));
+  }
+
+  void _recordStationStay(Station station) {
+    final now = DateTime.now();
+    if (stationStayStats.containsKey(station.id)) {
+      final record = stationStayStats[station.id]!;
+      final diffMins = now.difference(record.lastSeen).inMinutes;
+      if (diffMins >= 1) {
+        record.totalDurationMinutes += diffMins;
+        record.lastSeen = now;
+      } else {
+        record.lastSeen = now;
+      }
+    } else {
+      stationStayStats[station.id] = StationStayRecord(
+        station: station,
+        firstSeen: now,
+        lastSeen: now,
+        totalDurationMinutes: 1,
+        visitCount: 1,
+      );
+    }
   }
 
   void _addToRecentStations(Station station) {

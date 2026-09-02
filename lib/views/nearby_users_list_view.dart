@@ -47,7 +47,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                   Icon(Icons.person_search, size: 80, color: Colors.white24),
                   SizedBox(height: 20),
                   Text(
-                    'No souls found nearby',
+                    'No souls in radar range',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -56,9 +56,9 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                   ),
                   SizedBox(height: 10),
                   Text(
-                    'Try increasing your discovery radius in profile settings.',
+                    'Only users within your radar range (50m - 200m) appear here.\nTry increasing your discovery radius in profile settings or move around.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white38),
+                    style: TextStyle(color: Colors.white38, height: 1.4),
                   ),
                 ],
               ),
@@ -74,6 +74,21 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
             final profile = candidate.profile;
             final profileImage = _decodeProfileImage(profile.profileImageBase64);
 
+            final score = candidate.compatibilityScore.round();
+            final isHighMatch = candidate.compatibilityScore >= 80;
+
+            final badgeColor = isHighMatch
+                ? const Color(0xFF10B981) // Emerald green for high match (>= 80%)
+                : const Color(0xFF3B82F6); // Standard blue for regular match
+
+            final badgeBgColor = isHighMatch
+                ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                : const Color(0xFF3B82F6).withValues(alpha: 0.15);
+
+            final badgeBorderColor = isHighMatch
+                ? const Color(0xFF10B981).withValues(alpha: 0.6)
+                : const Color(0xFF3B82F6).withValues(alpha: 0.3);
+
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               color: const Color(0xFF1E293B),
@@ -87,7 +102,9 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.5),
+                      color: isHighMatch
+                          ? const Color(0xFF10B981).withValues(alpha: 0.7)
+                          : const Color(0xFF3B82F6).withValues(alpha: 0.5),
                       width: 2,
                     ),
                   ),
@@ -123,7 +140,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                         const Icon(Icons.location_on, size: 14, color: Color(0xFF60A5FA)),
                         const SizedBox(width: 4),
                         Text(
-                          '${candidate.distanceKm?.toStringAsFixed(1) ?? "?"} km away',
+                          _formatDistance(candidate.distanceKm),
                           style: const TextStyle(color: Colors.white60),
                         ),
                       ],
@@ -136,19 +153,41 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                   ],
                 ),
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                    color: badgeBgColor,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
+                    border: Border.all(color: badgeBorderColor),
+                    boxShadow: isHighMatch
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
                   ),
-                  child: Text(
-                    '${candidate.compatibilityScore.round()}%',
-                    style: const TextStyle(
-                      color: Color(0xFF3B82F6),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isHighMatch) ...[
+                        const Icon(
+                          Icons.bolt,
+                          size: 14,
+                          color: Color(0xFF10B981),
+                        ),
+                        const SizedBox(width: 2),
+                      ],
+                      Text(
+                        '$score%',
+                        style: TextStyle(
+                          color: badgeColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 onTap: () {
@@ -184,5 +223,14 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
   String _firstCharacter(String name) {
     final trimmed = name.trim();
     return trimmed.isEmpty ? '?' : trimmed.substring(0, 1).toUpperCase();
+  }
+
+  String _formatDistance(double? distanceKm) {
+    if (distanceKm == null) return 'Distance unavailable';
+    if (distanceKm < 1.0) {
+      final meters = (distanceKm * 1000).round();
+      return '$meters m away';
+    }
+    return '${distanceKm.toStringAsFixed(1)} km away';
   }
 }

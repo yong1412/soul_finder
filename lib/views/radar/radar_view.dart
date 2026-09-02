@@ -154,48 +154,220 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
         return ListenableBuilder(
           listenable: _controller,
           builder: (context, child) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.6,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(2))),
-                  const Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: Text("History Logs", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
-                  const Divider(height: 1, color: Colors.white10),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      itemCount: _controller.recentStations.length,
-                      itemBuilder: (context, index) {
-                        final record = _controller.recentStations[index];
-                        final timeStr = "${record.timestamp.hour.toString().padLeft(2, '0')}:${record.timestamp.minute.toString().padLeft(2, '0')}";
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                            child: Icon(Icons.history, color: Theme.of(context).colorScheme.primary, size: 20),
-                          ),
-                          title: Text(record.station.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-                          subtitle: Text("Visited at $timeStr", style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                          trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white24),
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showStationDetails(record);
-                          },
-                        );
-                      },
+            final topStay = _controller.topStayStations;
+
+            return DefaultTabController(
+              length: 2,
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.65,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    TabBar(
+                      indicatorColor: Theme.of(context).colorScheme.primary,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white38,
+                      tabs: const [
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.leaderboard, size: 16),
+                              SizedBox(width: 6),
+                              Text("Top Stay Stations"),
+                            ],
+                          ),
+                        ),
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.history, size: 16),
+                              SizedBox(width: 6),
+                              Text("Visit Logs"),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 1, color: Colors.white10),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          // Tab 1: Top Stay Stations Rank List
+                          topStay.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    "No station stay data recorded yet.",
+                                    style: TextStyle(color: Colors.white38),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                  itemCount: topStay.length,
+                                  itemBuilder: (context, index) {
+                                    final record = topStay[index];
+                                    final rank = index + 1;
+                                    final isTop3 = rank <= 3;
+                                    final rankColor = rank == 1
+                                        ? const Color(0xFFFFD700)
+                                        : rank == 2
+                                            ? const Color(0xFFC0C0C0)
+                                            : rank == 3
+                                                ? const Color(0xFFCD7F32)
+                                                : Colors.white38;
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isTop3
+                                            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
+                                            : Colors.white.withValues(alpha: 0.03),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: isTop3
+                                              ? rankColor.withValues(alpha: 0.4)
+                                              : Colors.white.withValues(alpha: 0.05),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          // Rank badge
+                                          Container(
+                                            width: 32,
+                                            height: 32,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                              color: isTop3 ? rankColor.withValues(alpha: 0.2) : Colors.white10,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Text(
+                                              "#$rank",
+                                              style: TextStyle(
+                                                color: isTop3 ? rankColor : Colors.white54,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          // Station details
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  record.station.name,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        record.station.type.name.toUpperCase(),
+                                                        style: TextStyle(
+                                                          color: Theme.of(context).colorScheme.primary,
+                                                          fontSize: 9,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      "${record.visitCount} visits",
+                                                      style: const TextStyle(color: Colors.white38, fontSize: 11),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Duration highlight
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              Text(
+                                                record.formattedDuration,
+                                                style: TextStyle(
+                                                  color: Theme.of(context).colorScheme.secondary,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              const Text(
+                                                "Stay Duration",
+                                                style: TextStyle(color: Colors.white38, fontSize: 9),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                          // Tab 2: Visit Logs
+                          _controller.recentStations.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    "No visit logs recorded yet.",
+                                    style: TextStyle(color: Colors.white38),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  itemCount: _controller.recentStations.length,
+                                  itemBuilder: (context, index) {
+                                    final record = _controller.recentStations[index];
+                                    final timeStr = "${record.timestamp.hour.toString().padLeft(2, '0')}:${record.timestamp.minute.toString().padLeft(2, '0')}";
+                                    return ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                        child: Icon(Icons.history, color: Theme.of(context).colorScheme.primary, size: 20),
+                                      ),
+                                      title: Text(record.station.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                                      subtitle: Text("Visited at $timeStr", style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                                      trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white24),
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _showStationDetails(record);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
-          }
+          },
         );
       },
     );
@@ -511,7 +683,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
       borderRadius: BorderRadius.circular(15),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
         decoration: BoxDecoration(
           color: !hasHotspots 
               ? Colors.white.withValues(alpha: 0.05) 
@@ -532,13 +704,13 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
             const SizedBox(width: 8),
             const Flexible(
               child: Text(
-                "HOTSPOTS",
+                "VIEW RECENT HOTSPOTS",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 11, 
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
+                  letterSpacing: 0.8,
                   color: Colors.white,
                 ),
               ),
@@ -642,9 +814,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                _controller.nearestStation!.type == StationType.bus
-                                    ? Icons.directions_bus
-                                    : Icons.train,
+                                Icons.train,
                                 size: 14, 
                                 color: theme.primary.withValues(alpha: 0.7)
                               ),

@@ -42,7 +42,7 @@ class UserProfile {
           .toList(),
       lookingFor: json['lookingFor'] as String? ?? '',
       discoveryRadius:
-      (json['discoveryRadius'] as num?)?.toDouble() ?? 5.0,
+      ((json['discoveryRadius'] as num?)?.toDouble() ?? 0.2).clamp(0.05, 0.2),
       profileImageBase64:
       json['profileImageBase64'] as String? ?? '',
       latitude: (json['latitude'] as num?)?.toDouble(),

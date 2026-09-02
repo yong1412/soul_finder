@@ -8,8 +8,10 @@ import 'firebase_options.dart';
 import 'controllers/auth_controller.dart';
 import 'services/auth_service.dart';
 import 'services/channel_service.dart';
+import 'services/match_service.dart';
 import 'views/auth/login_view.dart';
 import 'views/chat_list_view.dart';
+import 'views/like_notifications_view.dart';
 import 'views/nearby_users_list_view.dart';
 import 'views/user_dashboard_view.dart';
 
@@ -187,6 +189,68 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          StreamBuilder<int>(
+            stream: MatchService().watchUnreadNotificationCount(),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      unreadCount > 0
+                          ? Icons.notifications_active
+                          : Icons.notifications_outlined,
+                      color: unreadCount > 0 ? const Color(0xFFF43F5E) : null,
+                    ),
+                    tooltip: 'Like Notifications',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => Scaffold(
+                            appBar: AppBar(
+                              title: const Text('Notifications'),
+                              centerTitle: true,
+                            ),
+                            body: LikeNotificationsView(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF43F5E),
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: IndexedStack(
         index: _selectedIndex,

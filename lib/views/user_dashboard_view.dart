@@ -833,7 +833,7 @@ class UserDashboardView extends StatelessWidget {
                     'Control how far Soul Finder searches',
                   ),
                   trailing: Text(
-                    '${user.discoveryRadius.round()} KM',
+                    '${(user.discoveryRadius * 1000).round()} m',
                     style: TextStyle(
                       fontWeight:
                       FontWeight.bold,
