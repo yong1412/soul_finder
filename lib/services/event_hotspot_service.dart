@@ -17,13 +17,49 @@ class EventHotspotService extends ChangeNotifier {
   void _initSampleData() {
     _events.add(
       EventHotspot(
+        id: 'pv9_residence_01',
+        placeId: '0x31cc3868d78cf65d:0x8797f6534766c032', // Exact Google Maps Place Hex CID
+        name: 'PV 9 Residence',
+        eventTitle: 'PV 9 Residence Community Event',
+        description: 'PV 9 Residence Lounge & Pool Deck Area',
+        latitude: 3.2179226, // Exact Google Maps Latitude
+        longitude: 101.7251751, // Exact Google Maps Longitude
+        radiusMeters: 300.0,
+        interestedCount: 165,
+        activeAttendees: 18,
+        totalStayMinutes: 620,
+        eventTime: DateTime.now().add(const Duration(hours: 2)),
+        organizerName: 'PV 9 Resident Association',
+      ),
+    );
+
+    _events.add(
+      EventHotspot(
+        id: 'tarumt_block_b_02',
+        placeId: '0x31cc39eae76d5993:0x695c30c1a3b16071', // Exact Google Maps Place Hex CID
+        name: 'Block B, TARUMT',
+        eventTitle: 'TARUMT Block B Student & Campus Gathering',
+        description: 'Tunku Abdul Rahman University Management & Technology - Block B',
+        latitude: 3.2154575, // Exact Google Maps Latitude
+        longitude: 101.7266504, // Exact Google Maps Longitude
+        radiusMeters: 200.0,
+        interestedCount: 240,
+        activeAttendees: 35,
+        totalStayMinutes: 1120,
+        eventTime: DateTime.now().add(const Duration(hours: 4)),
+        organizerName: 'TARUMT Student Society',
+      ),
+    );
+
+    _events.add(
+      EventHotspot(
         id: 'serimas_pearl_tower_01',
         placeId: '0x31cc37638b0709ed:0x6249f472d36b8fae', // Exact Google Maps Place Hex CID
-        name: 'Serimas Condo • Pearl Tower', // 👈 Exact Google Maps Name
+        name: 'Serimas Condo • Pearl Tower',
         eventTitle: 'Pearl Tower Community & Soul Gathering',
         description: 'Serimas Condo • Pearl Tower Swimming Pool Deck & Lounge',
-        latitude: 3.1126352, // 👈 Exact Google Maps Latitude
-        longitude: 101.7225298, // 👈 Exact Google Maps Longitude
+        latitude: 3.1126352,
+        longitude: 101.7225298,
         radiusMeters: 200.0,
         interestedCount: 128,
         activeAttendees: 15,
