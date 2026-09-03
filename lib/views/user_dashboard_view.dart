@@ -808,53 +808,6 @@ class UserDashboardView extends StatelessWidget {
             ),
             child: Column(
               children: [
-
-                // Discovery Radius
-                ListTile(
-                  leading: Container(
-                    padding:
-                    const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.primary
-                          .withValues(
-                        alpha: 0.1,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.radar,
-                      color: theme.primary,
-                    ),
-                  ),
-                  title: const Text(
-                    'Discovery Radius',
-                  ),
-                  subtitle: const Text(
-                    'Control how far Soul Finder searches',
-                  ),
-                  trailing: Text(
-                    '${(user.discoveryRadius * 1000).round()} m',
-                    style: TextStyle(
-                      fontWeight:
-                      FontWeight.bold,
-                      color:
-                      theme.secondary,
-                    ),
-                  ),
-                  onTap: () {
-                    _openEditProfile(
-                      context,
-                    );
-                  },
-                ),
-
-                Divider(
-                  color: Colors.white.withValues(
-                    alpha: 0.05,
-                  ),
-                  height: 1,
-                ),
-
                 // Edit Profile
                 ListTile(
                   leading: Container(

@@ -83,10 +83,20 @@ class _LoginViewState extends State<LoginView> {
                               ],
                             ),
                           ),
-                          child: const Icon(
-                            Icons.favorite,
-                            size: 48,
-                            color: Colors.white,
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/logo.jpeg',
+                              width: 92,
+                              height: 92,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.favorite,
+                                  size: 48,
+                                  color: Colors.white,
+                                );
+                              },
+                            ),
                           ),
                         ),
 
@@ -202,12 +212,12 @@ class _LoginViewState extends State<LoginView> {
                             const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: colors.error
-                                  .withOpacity(0.1),
+                                  .withValues(alpha: 0.1),
                               borderRadius:
                               BorderRadius.circular(12),
                               border: Border.all(
                                 color: colors.error
-                                    .withOpacity(0.3),
+                                    .withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(

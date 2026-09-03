@@ -13,6 +13,7 @@ import 'views/auth/login_view.dart';
 import 'views/chat_list_view.dart';
 import 'views/like_notifications_view.dart';
 import 'views/nearby_users_list_view.dart';
+import 'views/splash_loading_view.dart';
 import 'views/user_dashboard_view.dart';
 
 Future<void> main() async {
@@ -101,11 +102,7 @@ class _MyAppState extends State<MyApp> {
         listenable: authController,
         builder: (context, child) {
           if (authController.isInitializing) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
+            return const SplashLoadingView();
           }
 
           if (authController.currentUser == null) {
@@ -153,6 +150,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return [
       RadarView(
         authController: widget.authController,
+        isRadarTabActive: _selectedIndex == 0,
       ),
       const NearbyUsersListView(),
       ChatListView(

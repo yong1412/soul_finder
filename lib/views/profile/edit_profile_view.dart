@@ -47,7 +47,6 @@ class _EditProfileViewState extends State<EditProfileView> {
 
   late String _gender;
   late String _lookingFor;
-  late double _radius;
 
   Uint8List? _profileImageBytes;
   String _profileImageBase64 = '';
@@ -78,7 +77,6 @@ class _EditProfileViewState extends State<EditProfileView> {
 
     _gender = user.gender;
     _lookingFor = user.lookingFor;
-    _radius = (user.discoveryRadius * 1000).clamp(50.0, 200.0); // Convert km to m for UI
     _profileImageBase64 = user.profileImageBase64;
 
     if (_profileImageBase64.isNotEmpty) {
@@ -139,7 +137,7 @@ class _EditProfileViewState extends State<EditProfileView> {
       bio: _bioController.text.trim(),
       interests: _selectedInterests.map((name) => _interestMapping[name] ?? name).toList(),
       lookingFor: _lookingFor,
-      discoveryRadius: _radius / 1000, // Convert m back to km for storage
+      discoveryRadius: current.discoveryRadius,
       profileImageBase64: _profileImageBase64,
     );
 
@@ -306,91 +304,6 @@ class _EditProfileViewState extends State<EditProfileView> {
                     ),
                     const SizedBox(height: 16),
                     _buildInterestsSelection(theme),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _buildSectionCard(
-                  title: 'Discovery Settings',
-                  icon: Icons.radar_outlined,
-                  theme: theme,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          color: theme.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Text(
-                            'Discovery Radius',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                              FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding:
-                          const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.primary
-                                .withOpacity(0.12),
-                            borderRadius:
-                            BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${_radius.round()} m',
-                            style: TextStyle(
-                              color: theme.primary,
-                              fontWeight:
-                              FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Slider(
-                      value: _radius.clamp(50.0, 200.0),
-                      min: 50,
-                      max: 200,
-                      divisions: 15, // 10m increments (50m - 200m)
-                      label: '${_radius.round()} m',
-                      onChanged: (value) {
-                        setState(() {
-                          _radius = value;
-                        });
-                      },
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8,
-                      ),
-                      child: Row(
-                        mainAxisAlignment:
-                        MainAxisAlignment
-                            .spaceBetween,
-                        children: [
-                          Text(
-                            '50 m',
-                            style: TextStyle(
-                              color: Colors.white38,
-                            ),
-                          ),
-                          Text(
-                            '200 m',
-                            style: TextStyle(
-                              color: Colors.white38,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 30),
@@ -586,7 +499,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                   }
                 });
               },
-              selectedColor: theme.primary.withOpacity(0.2),
+              selectedColor: theme.primary.withValues(alpha: 0.2),
               checkmarkColor: theme.primary,
               labelStyle: TextStyle(
                 color: isSelected ? theme.primary : Colors.white70,
@@ -627,11 +540,11 @@ class _EditProfileViewState extends State<EditProfileView> {
         color: theme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.14),
+            color: Colors.black.withValues(alpha: 0.14),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
@@ -647,7 +560,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                 padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
                   color: theme.primary
-                      .withOpacity(0.12),
+                      .withValues(alpha: 0.12),
                   borderRadius:
                   BorderRadius.circular(12),
                 ),
@@ -703,7 +616,7 @@ class _EditProfileViewState extends State<EditProfileView> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -751,7 +664,7 @@ class _EditProfileViewState extends State<EditProfileView> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
           ),
         ),
         focusedBorder: OutlineInputBorder(

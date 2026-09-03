@@ -215,6 +215,19 @@ class MatchService {
         .map((snapshot) => snapshot.exists);
   }
 
+  Stream<Set<String>> watchLikedUserIds() {
+    final currentUid = _requireCurrentUid();
+    return _likes
+        .where('fromUid', isEqualTo: currentUid)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => doc.data()['toUid'] as String? ?? '')
+          .where((uid) => uid.isNotEmpty)
+          .toSet();
+    });
+  }
+
   Stream<bool> watchMatchStatus(String targetUid) {
     final currentUid = _requireCurrentUid();
     return _matches

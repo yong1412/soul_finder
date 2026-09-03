@@ -1,16 +1,23 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../controllers/radar/radar_controller.dart';
 import '../../controllers/auth_controller.dart';
 import '../../models/radar/radar_models.dart';
+import '../../services/match_service.dart';
+import '../chat_conversation_view.dart';
+import '../public_user_profile_view.dart';
 import 'radar_painter.dart';
 
 class RadarView extends StatefulWidget {
   const RadarView({
     super.key,
     required this.authController,
+    this.isRadarTabActive = true,
   });
 
   final AuthController authController;
+  final bool isRadarTabActive;
 
   @override
   State<RadarView> createState() => _RadarViewState();
@@ -20,6 +27,16 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
   late final RadarController _controller;
   late AnimationController _animationController;
   bool _isRadiusExpanded = false;
+
+  final MatchService _matchService = MatchService();
+  StreamSubscription<List<MatchCandidate>>? _candidatesSubscription;
+  StreamSubscription<Set<String>>? _likedUserIdsSubscription;
+  Timer? _detectionDelayTimer;
+
+  List<MatchCandidate> _latestCandidates = [];
+  Set<String> _likedUserIds = {};
+  final Set<String> _skippedUserIds = {};
+  bool _isShowingDialog = false;
 
   @override
   void initState() {
@@ -31,6 +48,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
         : 200.0;
     
     _controller = RadarController(initialRadius: initialRadius);
+    _controller.addListener(_onRadarControllerChanged);
     _controller.startLocationTracking();
 
     _animationController = AnimationController(
@@ -40,6 +58,32 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
 
     // Listen to profile changes to update radar radius dynamically
     widget.authController.addListener(_onAuthChanged);
+
+    // Subscribe to match candidates & liked users for high match popup on radar
+    _likedUserIdsSubscription = _matchService.watchLikedUserIds().listen((likedIds) {
+      if (!mounted) return;
+      _likedUserIds = likedIds;
+      _checkAndShowHighMatchCandidate();
+    });
+
+    _candidatesSubscription = _matchService.watchCandidates().listen((candidates) {
+      if (!mounted) return;
+      _latestCandidates = candidates;
+      _checkAndShowHighMatchCandidate();
+    });
+  }
+
+  void _onRadarControllerChanged() {
+    if (!mounted) return;
+    _checkAndShowHighMatchCandidate();
+  }
+
+  @override
+  void didUpdateWidget(RadarView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isRadarTabActive && !oldWidget.isRadarTabActive) {
+      _checkAndShowHighMatchCandidate();
+    }
   }
 
   void _onAuthChanged() {
@@ -54,6 +98,10 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
 
   @override
   void dispose() {
+    _detectionDelayTimer?.cancel();
+    _controller.removeListener(_onRadarControllerChanged);
+    _candidatesSubscription?.cancel();
+    _likedUserIdsSubscription?.cancel();
     widget.authController.removeListener(_onAuthChanged);
     _animationController.dispose();
     _controller.dispose();
@@ -969,14 +1017,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                               );
                             }
 
-                            return const Text(
-                              "Scanning for nearby souls...",
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white70,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            );
+                            return const SizedBox.shrink();
                           },
                         ),
 
@@ -1001,6 +1042,397 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
           ],
         );
       }
+    );
+  }
+
+  void _checkAndShowHighMatchCandidate() {
+    if (!mounted) return;
+    if (!widget.isRadarTabActive) return;
+    if (_isShowingDialog) return;
+
+    // Requirement 1: Must be inside an active hotspot
+    if (_controller.currentStationHotspot == null) {
+      _detectionDelayTimer?.cancel();
+      return;
+    }
+
+    // Requirement 2: Must wait until radar page finishes location loading and scanning
+    if (!_controller.isLocationLoaded || _controller.isScanning) {
+      _detectionDelayTimer?.cancel();
+      return;
+    }
+
+    // Requirement 3: Add a 2-second delay for smooth performance and UX
+    _detectionDelayTimer?.cancel();
+    _detectionDelayTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      if (!widget.isRadarTabActive) return;
+      if (_isShowingDialog) return;
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      if (_controller.currentStationHotspot == null) return;
+      if (!_controller.isLocationLoaded || _controller.isScanning) return;
+
+      final highMatchCandidates = _latestCandidates.where((candidate) {
+        final uid = candidate.profile.uid;
+        final isHighMatch = candidate.compatibilityScore >= 80;
+        final notLiked = !_likedUserIds.contains(uid);
+        final notSkipped = !_skippedUserIds.contains(uid);
+        return isHighMatch && notLiked && notSkipped;
+      }).toList();
+
+      if (highMatchCandidates.isEmpty) return;
+
+      final candidate = highMatchCandidates.first;
+      _isShowingDialog = true;
+
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return HighMatchDialog(
+            candidate: candidate,
+            onInterested: () async {
+              Navigator.pop(dialogContext);
+              _skippedUserIds.add(candidate.profile.uid);
+
+              try {
+                final becameMatched = await _matchService.likeUser(candidate.profile.uid);
+
+                if (!mounted) return;
+
+                if (becameMatched) {
+                  _showMatchDialog(candidate);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Liked ${candidate.profile.name}! Waiting for mutual Like.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
+            },
+            onSkip: () {
+              Navigator.pop(dialogContext);
+              _skippedUserIds.add(candidate.profile.uid);
+            },
+            onViewProfile: () {
+              Navigator.pop(dialogContext);
+              _skippedUserIds.add(candidate.profile.uid);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PublicUserProfileView(candidate: candidate),
+                ),
+              );
+            },
+          );
+        },
+      ).then((_) {
+        _isShowingDialog = false;
+        if (mounted) {
+          _checkAndShowHighMatchCandidate();
+        }
+      });
+    });
+  }
+
+  void _showMatchDialog(MatchCandidate candidate) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.favorite, color: Color(0xFFF43F5E)),
+            SizedBox(width: 10),
+            Text("It's a Match!"),
+          ],
+        ),
+        content: Text('You and ${candidate.profile.name} liked each other! You can now start chatting.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Later'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatConversationView(
+                    targetUserUid: candidate.profile.uid,
+                    targetUserName: candidate.profile.name,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline),
+            label: const Text('Open Chat'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class HighMatchDialog extends StatelessWidget {
+  const HighMatchDialog({
+    super.key,
+    required this.candidate,
+    required this.onInterested,
+    required this.onSkip,
+    required this.onViewProfile,
+  });
+
+  final MatchCandidate candidate;
+  final VoidCallback onInterested;
+  final VoidCallback onSkip;
+  final VoidCallback onViewProfile;
+
+  ImageProvider? _decodeProfileImage(String base64String) {
+    if (base64String.isEmpty) return null;
+    try {
+      final cleanBase64 = base64String.contains(',')
+          ? base64String.split(',').last
+          : base64String;
+      return MemoryImage(base64Decode(cleanBase64));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = candidate.profile;
+    final profileImage = _decodeProfileImage(profile.profileImageBase64);
+    final score = candidate.compatibilityScore.round();
+
+    return Dialog(
+      backgroundColor: const Color(0xFF1E293B),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 16,
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // High Match Tag Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10B981), Color(0xFF059669)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.bolt, color: Colors.white, size: 18),
+                  const SizedBox(width: 4),
+                  Text(
+                    "High Match Soul ($score%)",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Profile Avatar with Glowing Border
+            GestureDetector(
+              onTap: onViewProfile,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF10B981),
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: CircleAvatar(
+                  radius: 45,
+                  backgroundColor: const Color(0xFF334155),
+                  backgroundImage: profileImage,
+                  child: profileImage == null
+                      ? Text(
+                          profile.name.isNotEmpty ? profile.name[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Name & Age
+            Text(
+              "${profile.name}, ${profile.age}",
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 6),
+
+            // Distance & Location
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.location_on, size: 14, color: Color(0xFF60A5FA)),
+                const SizedBox(width: 4),
+                Text(
+                  candidate.distanceKm != null
+                      ? "${(candidate.distanceKm! * 1000).round()}m away"
+                      : "Nearby",
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Shared Interests Chips
+            if (candidate.commonInterests.isNotEmpty) ...[
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
+                children: candidate.commonInterests.take(3).map((interest) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF334155),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "#$interest",
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Prompt text
+            const Text(
+              "High compatibility soul detected nearby!\nAre you interested?",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+
+            // Action Buttons (Skip vs Interested)
+            Row(
+              children: [
+                // Skip Button
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onSkip,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.white24),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      "Skip",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Interested Button
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onInterested,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF43F5E),
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.favorite, size: 18),
+                        SizedBox(width: 6),
+                        Text(
+                          "Interested",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
+            // View Profile Text Link
+            TextButton(
+              onPressed: onViewProfile,
+              child: const Text(
+                "View Full Profile",
+                style: TextStyle(
+                  color: Color(0xFF60A5FA),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
