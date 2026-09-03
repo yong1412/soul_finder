@@ -1,18 +1,22 @@
-enum StationType { lrt, mrt }
+enum StationType { lrt, mrt, event }
 
 class Station {
   final String id;
-  final String name;
+  final String name; // Place name
+  final String? eventTitle; // Event Title (used when type == StationType.event)
   final double latitude;
   final double longitude;
   final StationType type;
+  final String? address;
 
   Station({
     required this.id,
     required this.name,
+    this.eventTitle,
     required this.latitude,
     required this.longitude,
     required this.type,
+    this.address,
   });
 }
 
@@ -30,6 +34,8 @@ class StationStayRecord {
   final Station station;
   DateTime firstSeen;
   DateTime lastSeen;
+  int initialHistoryDurationMinutes; // Accumulated minutes loaded from Firestore before current session
+  DateTime currentSessionFirstSeen; // Session start timestamp
   int totalDurationMinutes;
   int visitCount;
 
@@ -37,9 +43,11 @@ class StationStayRecord {
     required this.station,
     required this.firstSeen,
     required this.lastSeen,
-    this.totalDurationMinutes = 1,
+    this.initialHistoryDurationMinutes = 0,
+    DateTime? currentSessionFirstSeen,
+    required this.totalDurationMinutes,
     this.visitCount = 1,
-  });
+  }) : currentSessionFirstSeen = currentSessionFirstSeen ?? DateTime.now();
 
   String get formattedDuration {
     if (totalDurationMinutes < 1) return "< 1 min";

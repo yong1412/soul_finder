@@ -45,6 +45,7 @@ dependencies:
   media_kit: ^1.1.11
   media_kit_video: ^1.2.5
   media_kit_libs_video: ^1.0.7
+  google_maps_flutter: ^2.10.0
 
 dev_dependencies:
   flutter_test:
@@ -70,6 +71,7 @@ flutter:
 
   assets:
     - assets/logo.jpeg
+    - assets/data/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

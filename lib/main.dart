@@ -6,9 +6,11 @@ import 'package:soul_finder/views/radar/radar_view.dart';
 import 'firebase_options.dart';
 
 import 'controllers/auth_controller.dart';
+import 'controllers/radar/radar_controller.dart';
 import 'services/auth_service.dart';
 import 'services/channel_service.dart';
 import 'services/match_service.dart';
+import 'services/radar/location_service.dart';
 import 'views/auth/login_view.dart';
 import 'views/chat_list_view.dart';
 import 'views/like_notifications_view.dart';
@@ -84,7 +86,7 @@ class _MyAppState extends State<MyApp> {
             ),
           ),
           iconTheme: WidgetStateProperty.resolveWith(
-                (states) {
+            (states) {
               if (states.contains(WidgetState.selected)) {
                 return const IconThemeData(
                   color: Color(0xFF3B82F6),
@@ -136,14 +138,35 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+  bool _isPreloadingUserData = true;
 
   @override
   void initState() {
     super.initState();
-    // Initialize channels after user is logged in
+    _preloadUserDataInBackground();
+  }
+
+  Future<void> _preloadUserDataInBackground() async {
+    final uid = widget.authController.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      // 🚀 Preload user's visited hotspot history into memory cache BEFORE starting Radar
+      await RadarController.preloadHotspotHistoryForUser(uid);
+    }
+
     ChannelService().initializeInterestChannels().catchError((e) {
       debugPrint("Channel initialization skipped: $e");
     });
+
+    LocationService().getCurrentLocation().catchError((e) {
+      debugPrint("Location sync skipped: $e");
+      return null;
+    });
+
+    if (mounted) {
+      setState(() {
+        _isPreloadingUserData = false;
+      });
+    }
   }
 
   List<Widget> get _screens {
@@ -177,6 +200,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isPreloadingUserData) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF38BDF8), strokeWidth: 3),
+              const SizedBox(height: 20),
+              const Text(
+                'Loading Soul Finder...',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Pre-loading user data & hotspot history for ${widget.authController.currentUser?.name ?? "user"}...',
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(

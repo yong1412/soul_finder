@@ -5,6 +5,8 @@ import '../../controllers/radar/radar_controller.dart';
 import '../../controllers/auth_controller.dart';
 import '../../models/radar/radar_models.dart';
 import '../../services/match_service.dart';
+import '../../services/radar/geocoding_service.dart';
+import '../../widgets/marquee_text.dart';
 import '../chat_conversation_view.dart';
 import '../public_user_profile_view.dart';
 import 'radar_painter.dart';
@@ -66,7 +68,13 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
       _checkAndShowHighMatchCandidate();
     });
 
-    _candidatesSubscription = _matchService.watchCandidates().listen((candidates) {
+    _subscribeToCandidates();
+  }
+
+  void _subscribeToCandidates() {
+    _candidatesSubscription?.cancel();
+    final mode = _controller.scanMode.isEmpty ? 'friends' : _controller.scanMode.first;
+    _candidatesSubscription = _matchService.watchCandidates(scanMode: mode).listen((candidates) {
       if (!mounted) return;
       _latestCandidates = candidates;
       _checkAndShowHighMatchCandidate();
@@ -162,15 +170,39 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(Icons.location_on_outlined, color: Colors.white54, size: 18),
-                  const SizedBox(width: 12),
-                  Text(
-                    "Coordinates: ${record.station.latitude.toStringAsFixed(4)}, ${record.station.longitude.toStringAsFixed(4)}",
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ],
+              FutureBuilder<GeocodingResult?>(
+                future: GeocodingService().reverseGeocode(
+                  record.station.latitude,
+                  record.station.longitude,
+                ),
+                builder: (context, snapshot) {
+                  final addressText = snapshot.data?.shortAddress ??
+                      "${record.station.latitude.toStringAsFixed(4)}, ${record.station.longitude.toStringAsFixed(4)}";
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.location_on_outlined, color: Colors.white54, size: 18),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              addressText,
+                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "GPS: ${record.station.latitude.toStringAsFixed(4)}, ${record.station.longitude.toStringAsFixed(4)}",
+                              style: const TextStyle(color: Colors.white38, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 30),
               SizedBox(
@@ -319,7 +351,9 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  record.station.name,
+                                                  record.station.type == StationType.event
+                                                      ? (record.station.eventTitle ?? record.station.name)
+                                                      : record.station.name,
                                                   style: const TextStyle(
                                                     color: Colors.white,
                                                     fontWeight: FontWeight.bold,
@@ -332,13 +366,19 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                                                     Container(
                                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                       decoration: BoxDecoration(
-                                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                                                        color: record.station.type == StationType.event
+                                                            ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
+                                                            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
                                                         borderRadius: BorderRadius.circular(6),
                                                       ),
                                                       child: Text(
-                                                        record.station.type.name.toUpperCase(),
+                                                        record.station.type == StationType.event
+                                                            ? 'EVENT'
+                                                            : record.station.type.name.toUpperCase(),
                                                         style: TextStyle(
-                                                          color: Theme.of(context).colorScheme.primary,
+                                                          color: record.station.type == StationType.event
+                                                              ? const Color(0xFFF59E0B)
+                                                              : Theme.of(context).colorScheme.primary,
                                                           fontSize: 9,
                                                           fontWeight: FontWeight.bold,
                                                         ),
@@ -393,12 +433,23 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                                   itemBuilder: (context, index) {
                                     final record = _controller.recentStations[index];
                                     final timeStr = "${record.timestamp.hour.toString().padLeft(2, '0')}:${record.timestamp.minute.toString().padLeft(2, '0')}";
+                                    final isEvent = record.station.type == StationType.event;
+                                    final stationTitle = isEvent
+                                        ? (record.station.eventTitle ?? record.station.name)
+                                        : record.station.name;
+
                                     return ListTile(
                                       leading: CircleAvatar(
-                                        backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                                        child: Icon(Icons.history, color: Theme.of(context).colorScheme.primary, size: 20),
+                                        backgroundColor: isEvent
+                                            ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                                            : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                        child: Icon(
+                                          isEvent ? Icons.local_fire_department : Icons.history,
+                                          color: isEvent ? const Color(0xFFF59E0B) : Theme.of(context).colorScheme.primary,
+                                          size: 20,
+                                        ),
                                       ),
-                                      title: Text(record.station.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                                      title: Text(stationTitle, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
                                       subtitle: Text("Visited at $timeStr", style: const TextStyle(color: Colors.white38, fontSize: 12)),
                                       trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white24),
                                       onTap: () {
@@ -608,6 +659,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
       onTap: () {
         final nextMode = isCouple ? 'friends' : 'couple';
         _controller.setScanMode({nextMode});
+        _subscribeToCandidates();
       },
       borderRadius: BorderRadius.circular(25),
       child: AnimatedContainer(
@@ -780,6 +832,31 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
     );
   }
 
+  Widget _buildRadarLoadingScreen(ColorScheme theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: theme.primary, strokeWidth: 3),
+          const SizedBox(height: 20),
+          const Text(
+            'Initializing Radar & Hotspots...',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Syncing user location & loading hotspot history...',
+            style: TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).colorScheme;
@@ -787,6 +864,11 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, child) {
+        // 🎯 Show Radar Loading Screen until location & Firestore history are 100% loaded!
+        if (!_controller.isLocationLoaded || !_controller.isHistoryLoaded) {
+          return _buildRadarLoadingScreen(theme);
+        }
+
         final mode = _controller.scanMode.isEmpty ? 'friends' : _controller.scanMode.first;
         final modeColor = _getModeColor(mode, theme);
 
@@ -807,7 +889,9 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                     margin: const EdgeInsets.only(top: 10, left: 20, right: 20),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [theme.primary, theme.secondary]),
+                      gradient: _controller.currentStationHotspot?.type == StationType.event
+                          ? const LinearGradient(colors: [Color(0xFF0284C7), Color(0xFF0F766E)])
+                          : LinearGradient(colors: [theme.primary, theme.secondary]),
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(color: theme.secondary.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 1)
@@ -817,21 +901,33 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                       ? const SizedBox.shrink()
                       : Row(
                         children: [
-                          const Icon(Icons.stars, color: Colors.white, size: 20),
+                          Icon(
+                            _controller.currentStationHotspot?.type == StationType.event
+                                ? Icons.local_fire_department
+                                : Icons.stars,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              "ACTIVE HOTSPOT: ${_controller.currentStationHotspot?.name}",
+                            child: MarqueeText(
+                              text: _controller.currentStationHotspot?.type == StationType.event
+                                  ? "ACTIVE EVENT: ${_controller.currentStationHotspot?.eventTitle ?? _controller.currentStationHotspot?.name}"
+                                  : "ACTIVE HOTSPOT: ${_controller.currentStationHotspot?.name}",
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const Text("BONUS LUCK", style: TextStyle(color: Colors.white70, fontSize: 10)),
+                          Text(
+                            _controller.currentStationHotspot?.type == StationType.event
+                                ? "EVENT ACTIVE"
+                                : "BONUS LUCK",
+                            style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
                         ],
                       ),
                   ),
 
-                  // 距离最近站点显示
+                  // 距离最近站点/Event显示
                   Padding(
                     padding: const EdgeInsets.only(top: 12.0),
                     child: Builder(
@@ -850,7 +946,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                               ),
                               const SizedBox(width: 8),
                               const Text(
-                                "Scanning for nearby stations...",
+                                "Scanning for nearby locations...",
                                 style: TextStyle(fontSize: 12, color: Colors.white38),
                               ),
                             ],
@@ -858,6 +954,71 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                         }
 
                         if (_controller.nearestStation != null && _controller.minDistanceToStation != null) {
+                          final station = _controller.nearestStation!;
+                          final isEvent = station.type == StationType.event;
+
+                          if (isEvent) {
+                            // Dedicated Event Nearest UI: ONLY Event Title, NO place name!
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0F172A).withValues(alpha: 0.8),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: const Color(0xFF38BDF8).withValues(alpha: 0.6),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.local_fire_department,
+                                    size: 16,
+                                    color: Color(0xFF38BDF8),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF38BDF8).withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      "EVENT",
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF38BDF8),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: MarqueeText(
+                                      text: station.eventTitle ?? station.name, // ONLY EVENT TITLE
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    "(${(_controller.minDistanceToStation! * 1000).toInt()}m)",
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF38BDF8),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          // Regular Transit Station Nearest UI
                           return Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -869,7 +1030,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  "Nearest: ${_controller.nearestStation!.name} ",
+                                  "Nearest: ${station.name} ",
                                   style: const TextStyle(fontSize: 12, color: Colors.white70),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -887,7 +1048,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                         }
 
                         return const Text(
-                          "No stations detected in range",
+                          "No locations detected in range",
                           style: TextStyle(fontSize: 12, color: Colors.white24),
                         );
                       },
@@ -978,9 +1139,20 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                     child: Column(
                       children: [
                         if (_controller.currentPosition != null)
-                          Text(
-                            "My Location: ${_controller.currentPosition!.latitude.toStringAsFixed(4)}, ${_controller.currentPosition!.longitude.toStringAsFixed(4)}",
-                            style: const TextStyle(fontSize: 10, color: Colors.white38),
+                          FutureBuilder<GeocodingResult?>(
+                            future: GeocodingService().reverseGeocode(
+                              _controller.currentPosition!.latitude,
+                              _controller.currentPosition!.longitude,
+                            ),
+                            builder: (context, snapshot) {
+                              final locText = snapshot.data?.shortAddress ??
+                                  "${_controller.currentPosition!.latitude.toStringAsFixed(4)}, ${_controller.currentPosition!.longitude.toStringAsFixed(4)}";
+                              return Text(
+                                "My Location: $locText",
+                                style: const TextStyle(fontSize: 11, color: Colors.white54),
+                                textAlign: TextAlign.center,
+                              );
+                            },
                           ),
                         const SizedBox(height: 10),
                         Builder(
@@ -1072,12 +1244,28 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
       if (_controller.currentStationHotspot == null) return;
       if (!_controller.isLocationLoaded || _controller.isScanning) return;
 
+      final currentMode = _controller.scanMode.isEmpty ? 'friends' : _controller.scanMode.first;
+
       final highMatchCandidates = _latestCandidates.where((candidate) {
         final uid = candidate.profile.uid;
         final isHighMatch = candidate.compatibilityScore >= 80;
         final notLiked = !_likedUserIds.contains(uid);
         final notSkipped = !_skippedUserIds.contains(uid);
-        return isHighMatch && notLiked && notSkipped;
+
+        // Filter candidates based on current Radar Mode (Find Friends vs Find Couple)
+        final lookingForLower = candidate.profile.lookingFor.toLowerCase().trim();
+        final matchesMode = currentMode == 'couple'
+            ? (lookingForLower.contains('couple') ||
+                lookingForLower.contains('dating') ||
+                lookingForLower.contains('relat') ||
+                lookingForLower == 'both' ||
+                lookingForLower.isEmpty)
+            : (lookingForLower.contains('friend') ||
+                lookingForLower.contains('network') ||
+                lookingForLower == 'both' ||
+                lookingForLower.isEmpty);
+
+        return isHighMatch && notLiked && notSkipped && matchesMode;
       }).toList();
 
       if (highMatchCandidates.isEmpty) return;

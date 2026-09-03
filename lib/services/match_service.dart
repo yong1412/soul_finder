@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../models/event_hotspot.dart';
 import '../models/user_profile.dart';
 
 class MatchCandidate {
@@ -136,7 +137,10 @@ class MatchService {
     return ids.join('_');
   }
 
-  Stream<List<MatchCandidate>> watchCandidates() {
+  Stream<List<MatchCandidate>> watchCandidates({
+    bool filterByRadius = true,
+    String? scanMode,
+  }) {
     final currentUid = _requireCurrentUid();
 
     return _users.snapshots().map((snapshot) {
@@ -163,13 +167,33 @@ class MatchService {
           continue;
         }
 
+        // Filter by intention if scanMode is specified ('friends' vs 'couple')
+        if (scanMode != null && scanMode.isNotEmpty) {
+          final lookingForLower = other.lookingFor.toLowerCase().trim();
+          if (scanMode == 'friends') {
+            final isFriendMatch = lookingForLower.contains('friend') ||
+                lookingForLower.contains('network') ||
+                lookingForLower == 'both' ||
+                lookingForLower.isEmpty;
+            if (!isFriendMatch) continue;
+          } else if (scanMode == 'couple') {
+            final isCoupleMatch = lookingForLower.contains('couple') ||
+                lookingForLower.contains('dating') ||
+                lookingForLower.contains('relat') ||
+                lookingForLower.contains('roman') ||
+                lookingForLower == 'both' ||
+                lookingForLower.isEmpty;
+            if (!isCoupleMatch) continue;
+          }
+        }
+
         // Radar discovery radius is 50m - 200m (0.05 km - 0.2 km)
         final effectiveRadiusKm = currentProfile.discoveryRadius.clamp(0.05, 0.2);
 
         final distance = _distanceBetween(currentProfile, other);
 
         // Filter out users who do not have valid location OR are outside the radar range (50m - 200m)
-        if (distance == null || distance > effectiveRadiusKm) {
+        if (filterByRadius && (distance == null || distance > effectiveRadiusKm)) {
           continue;
         }
 
@@ -186,7 +210,7 @@ class MatchService {
             compatibilityScore: _compatibilityScore(
               currentProfile,
               other,
-              distance,
+              distance ?? 1.0,
               commonInterests.length,
             ),
           ),
@@ -204,6 +228,51 @@ class MatchService {
       });
 
       return candidates;
+    });
+  }
+
+  /// Watch candidates/souls currently in the location range of a specific Event Hotspot
+  Stream<List<MatchCandidate>> watchEventCandidates(EventHotspot event) {
+    return watchCandidates(filterByRadius: false).map((candidates) {
+      final eventProfile = UserProfile(
+        uid: 'event_anchor',
+        email: '',
+        name: event.name,
+        age: 0,
+        gender: '',
+        bio: '',
+        interests: const [],
+        lookingFor: '',
+        discoveryRadius: 0.2,
+        profileImageBase64: '',
+        latitude: event.latitude,
+        longitude: event.longitude,
+      );
+
+      final eventSouls = <MatchCandidate>[];
+      for (final candidate in candidates) {
+        if (!candidate.profile.hasLocation) continue;
+
+        final distanceKm = _distanceBetween(eventProfile, candidate.profile);
+        if (distanceKm == null) continue;
+
+        final distanceMeters = distanceKm * 1000;
+        final maxRangeMeters = max(event.radiusMeters * 5, 2000.0);
+
+        if (distanceMeters <= maxRangeMeters) {
+          eventSouls.add(
+            MatchCandidate(
+              profile: candidate.profile,
+              distanceKm: distanceKm,
+              commonInterests: candidate.commonInterests,
+              compatibilityScore: candidate.compatibilityScore,
+            ),
+          );
+        }
+      }
+
+      eventSouls.sort((a, b) => (a.distanceKm ?? 0).compareTo(b.distanceKm ?? 0));
+      return eventSouls;
     });
   }
 
