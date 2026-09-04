@@ -141,7 +141,10 @@ class MatchService {
     bool filterByRadius = true,
     String? scanMode,
   }) {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value([]);
+    }
 
     return _users.snapshots().map((snapshot) {
       final profiles = snapshot.docs
@@ -277,15 +280,22 @@ class MatchService {
   }
 
   Stream<bool> watchLikeStatus(String targetUid) {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value(false);
+    }
     return _likes
         .doc('${currentUid}_$targetUid')
         .snapshots()
-        .map((snapshot) => snapshot.exists);
+        .map((snapshot) => snapshot.exists)
+        .handleError((e) => false);
   }
 
   Stream<Set<String>> watchLikedUserIds() {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value({});
+    }
     return _likes
         .where('fromUid', isEqualTo: currentUid)
         .snapshots()
@@ -294,11 +304,14 @@ class MatchService {
           .map((doc) => doc.data()['toUid'] as String? ?? '')
           .where((uid) => uid.isNotEmpty)
           .toSet();
-    });
+    }).handleError((e) => <String>{});
   }
 
   Stream<bool> watchMatchStatus(String targetUid) {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value(false);
+    }
     return _matches
         .doc(_matchId(currentUid, targetUid))
         .snapshots()
@@ -307,7 +320,7 @@ class MatchService {
         return false;
       }
       return snapshot.data()?['status'] == 'active';
-    });
+    }).handleError((e) => false);
   }
 
   Future<bool> likeUser(String targetUid) async {
@@ -408,7 +421,10 @@ class MatchService {
   }
 
   Stream<List<LikeNotification>> watchMyLikeNotifications() {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value([]);
+    }
     return _notificationItems(currentUid)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -432,7 +448,7 @@ class MatchService {
           );
         }),
       );
-    });
+    }).handleError((e) => <LikeNotification>[]);
   }
 
   Stream<int> watchUnreadNotificationCount() {

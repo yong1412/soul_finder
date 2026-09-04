@@ -65,7 +65,7 @@ class RadarPainter extends CustomPainter {
       linePaint,
     );
 
-    // Draw dots
+    // Draw dots (pushed out towards outer radar rings & clear glowing effect)
     for (var dot in dots) {
       final dotAngle = dot.angle;
       double currentSweepAngle = (progress * 2 * math.pi) % (2 * math.pi);
@@ -74,24 +74,27 @@ class RadarPainter extends CustomPainter {
       double angleDiff = (currentSweepAngle - normalizedDotAngle);
       if (angleDiff < 0) angleDiff += 2 * math.pi;
       
-      if (angleDiff < math.pi / 2) {
-        final opacity = (1.0 - (angleDiff / (math.pi / 2))).clamp(0.0, 1.0);
-        final dotPaint = Paint()
-          ..color = color.withValues(alpha: opacity)
-          ..style = PaintingStyle.fill;
-        
-        final dotOffset = Offset(
-          center.dx + radius * dot.distance * math.cos(dotAngle),
-          center.dy + radius * dot.distance * math.sin(dotAngle),
-        );
-        
-        canvas.drawCircle(dotOffset, dot.size, dotPaint);
-        canvas.drawCircle(
-          dotOffset, 
-          dot.size * 2, 
-          Paint()..color = color.withValues(alpha: opacity * 0.35)..style = PaintingStyle.fill
-        );
-      }
+      // Gentle persistent glow when sweep passes over
+      final opacity = math.max(0.30, (1.0 - (angleDiff / (math.pi * 1.2))).clamp(0.0, 1.0));
+
+      final dotOffset = Offset(
+        center.dx + radius * dot.distance * math.cos(dotAngle),
+        center.dy + radius * dot.distance * math.sin(dotAngle),
+      );
+
+      // Core glowing blip
+      canvas.drawCircle(
+        dotOffset,
+        dot.size,
+        Paint()..color = color.withValues(alpha: opacity)..style = PaintingStyle.fill,
+      );
+
+      // Outer aura halo
+      canvas.drawCircle(
+        dotOffset,
+        dot.size * 2.2,
+        Paint()..color = color.withValues(alpha: opacity * 0.35)..style = PaintingStyle.fill,
+      );
     }
   }
 

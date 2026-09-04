@@ -25,7 +25,6 @@ class _RegisterViewState extends State<RegisterView> {
   final _confirmPasswordController = TextEditingController();
 
   String _gender = 'Prefer not to say';
-  String _lookingFor = 'Friendship';
   final List<String> _selectedInterests = [];
 
   bool _hidePassword = true;
@@ -70,7 +69,7 @@ class _RegisterViewState extends State<RegisterView> {
       name: _nameController.text.trim(),
       age: int.parse(_ageController.text.trim()),
       gender: _gender,
-      lookingFor: _lookingFor,
+      lookingFor: 'Both',
       interests: _selectedInterests.map((label) => InterestData.getId(label)).toList(),
     );
 
@@ -247,39 +246,6 @@ class _RegisterViewState extends State<RegisterView> {
 
                         const SizedBox(height: 14),
 
-                        DropdownButtonFormField<String>(
-                          initialValue: _lookingFor,
-                          decoration: _inputDecoration(
-                            label: 'Looking for',
-                            icon: Icons.favorite_outline,
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'Friendship',
-                              child: Text('Friendship'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Relationship',
-                              child: Text('Relationship'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Both',
-                              child: Text(
-                                'Friendship or relationship',
-                              ),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _lookingFor = value;
-                              });
-                            }
-                          },
-                        ),
-
-                        const SizedBox(height: 14),
-
                         _buildInterestsSection(colors),
 
                         const SizedBox(height: 24),
@@ -374,12 +340,12 @@ class _RegisterViewState extends State<RegisterView> {
                             const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: colors.error
-                                  .withOpacity(0.1),
+                                  .withValues(alpha: 0.1),
                               borderRadius:
                               BorderRadius.circular(12),
                               border: Border.all(
                                 color: colors.error
-                                    .withOpacity(0.3),
+                                    .withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -509,7 +475,7 @@ class _RegisterViewState extends State<RegisterView> {
                   }
                 });
               },
-              selectedColor: theme.primary.withOpacity(0.2),
+              selectedColor: theme.primary.withValues(alpha: 0.2),
               checkmarkColor: theme.primary,
               labelStyle: TextStyle(
                 color: isSelected ? theme.primary : Colors.white70,
@@ -519,7 +485,7 @@ class _RegisterViewState extends State<RegisterView> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
-                  color: isSelected ? theme.primary : Colors.white.withOpacity(0.1),
+                  color: isSelected ? theme.primary : Colors.white.withValues(alpha: 0.1),
                 ),
               ),
             );
@@ -547,7 +513,7 @@ class _RegisterViewState extends State<RegisterView> {
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withValues(alpha: 0.06),
         ),
       ),
       focusedBorder: OutlineInputBorder(

@@ -10,6 +10,8 @@ class UserProfile {
     required this.lookingFor,
     required this.discoveryRadius,
     required this.profileImageBase64,
+    this.heightCm,
+    this.weightKg,
     this.latitude,
     this.longitude,
   });
@@ -24,6 +26,8 @@ class UserProfile {
   final String lookingFor;
   final double discoveryRadius;
   final String profileImageBase64;
+  final double? heightCm;
+  final double? weightKg;
   final double? latitude;
   final double? longitude;
 
@@ -45,6 +49,8 @@ class UserProfile {
       ((json['discoveryRadius'] as num?)?.toDouble() ?? 0.2).clamp(0.05, 0.2),
       profileImageBase64:
       json['profileImageBase64'] as String? ?? '',
+      heightCm: (json['heightCm'] as num?)?.toDouble(),
+      weightKg: (json['weightKg'] as num?)?.toDouble(),
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
     );
@@ -62,6 +68,8 @@ class UserProfile {
       'lookingFor': lookingFor,
       'discoveryRadius': discoveryRadius,
       'profileImageBase64': profileImageBase64,
+      if (heightCm != null) 'heightCm': heightCm,
+      if (weightKg != null) 'weightKg': weightKg,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
     };
@@ -78,6 +86,8 @@ class UserProfile {
     String? lookingFor,
     double? discoveryRadius,
     String? profileImageBase64,
+    double? heightCm,
+    double? weightKg,
     double? latitude,
     double? longitude,
   }) {
@@ -93,6 +103,8 @@ class UserProfile {
       discoveryRadius: discoveryRadius ?? this.discoveryRadius,
       profileImageBase64:
       profileImageBase64 ?? this.profileImageBase64,
+      heightCm: heightCm ?? this.heightCm,
+      weightKg: weightKg ?? this.weightKg,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
     );

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../controllers/auth_controller.dart';
+import '../../models/interest_data.dart';
 
 class EditProfileView extends StatefulWidget {
   const EditProfileView({
@@ -13,9 +14,9 @@ class EditProfileView extends StatefulWidget {
   });
 
   final AuthController controller;
+
   @override
-  State<EditProfileView> createState() =>
-      _EditProfileViewState();
+  State<EditProfileView> createState() => _EditProfileViewState();
 }
 
 class _EditProfileViewState extends State<EditProfileView> {
@@ -25,6 +26,8 @@ class _EditProfileViewState extends State<EditProfileView> {
   late final TextEditingController _nameController;
   late final TextEditingController _ageController;
   late final TextEditingController _bioController;
+  late final TextEditingController _heightController;
+  late final TextEditingController _weightController;
 
   late List<String> _selectedInterests;
 
@@ -46,7 +49,6 @@ class _EditProfileViewState extends State<EditProfileView> {
   List<String> get _predefinedInterests => _interestMapping.keys.toList();
 
   late String _gender;
-  late String _lookingFor;
 
   Uint8List? _profileImageBytes;
   String _profileImageBase64 = '';
@@ -69,6 +71,14 @@ class _EditProfileViewState extends State<EditProfileView> {
       text: user.bio,
     );
 
+    _heightController = TextEditingController(
+      text: user.heightCm != null ? user.heightCm!.toStringAsFixed(0) : '',
+    );
+
+    _weightController = TextEditingController(
+      text: user.weightKg != null ? user.weightKg!.toStringAsFixed(0) : '',
+    );
+
     _selectedInterests = user.interests.map((raw) {
       return _interestMapping.entries
           .firstWhere((e) => e.value == raw, orElse: () => MapEntry(raw, raw))
@@ -76,7 +86,6 @@ class _EditProfileViewState extends State<EditProfileView> {
     }).toList();
 
     _gender = user.gender;
-    _lookingFor = user.lookingFor;
     _profileImageBase64 = user.profileImageBase64;
 
     if (_profileImageBase64.isNotEmpty) {
@@ -94,41 +103,92 @@ class _EditProfileViewState extends State<EditProfileView> {
     _nameController.dispose();
     _ageController.dispose();
     _bioController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickProfilePicture() async {
-    final XFile? image = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-      maxWidth: 900,
-    );
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
 
-    if (image == null) {
-      return;
+      if (pickedFile == null) {
+        return;
+      }
+
+      final bytes = await pickedFile.readAsBytes();
+      final base64String = base64Encode(bytes);
+
+      setState(() {
+        _profileImageBytes = bytes;
+        _profileImageBase64 = base64String;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to pick image: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
-
-    final bytes = await image.readAsBytes();
-
-    setState(() {
-      _profileImageBytes = bytes;
-      _profileImageBase64 = base64Encode(bytes);
-    });
   }
 
-  void _removeProfilePicture() {
-    setState(() {
-      _profileImageBytes = null;
-      _profileImageBase64 = '';
-    });
+  void _showImagePickerSheet(ThemeData theme) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _ImagePickerOption(
+                  icon: Icons.photo_library_outlined,
+                  label: 'Gallery',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                _ImagePickerOption(
+                  icon: Icons.camera_alt_outlined,
+                  label: 'Camera',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  Future<void> _save() async {
+  Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     final current = widget.controller.currentUser!;
+
+    final double? heightVal = double.tryParse(_heightController.text.trim());
+    final double? weightVal = double.tryParse(_weightController.text.trim());
 
     final updated = current.copyWith(
       name: _nameController.text.trim(),
@@ -136,9 +196,11 @@ class _EditProfileViewState extends State<EditProfileView> {
       gender: _gender,
       bio: _bioController.text.trim(),
       interests: _selectedInterests.map((name) => _interestMapping[name] ?? name).toList(),
-      lookingFor: _lookingFor,
+      lookingFor: current.lookingFor,
       discoveryRadius: current.discoveryRadius,
       profileImageBase64: _profileImageBase64,
+      heightCm: heightVal,
+      weightKg: weightVal,
     );
 
     final success =
@@ -149,22 +211,22 @@ class _EditProfileViewState extends State<EditProfileView> {
     }
 
     if (success) {
-      Navigator.of(context).pop();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Profile updated successfully.',
-          ),
+          content: Text('Profile updated successfully!'),
+          backgroundColor: Color(0xFF10B981),
         ),
       );
+
+      Navigator.pop(context);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             widget.controller.errorMessage ??
-                'Unable to update profile.',
+                'Failed to update profile.',
           ),
+          backgroundColor: Colors.redAccent,
         ),
       );
     }
@@ -172,35 +234,45 @@ class _EditProfileViewState extends State<EditProfileView> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text(
-          'Edit Profile',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
+        title: const Text('Edit Profile'),
+        actions: [
+          TextButton(
+            onPressed: widget.controller.isBusy
+                ? null
+                : _saveProfile,
+            child: widget.controller.isBusy
+                ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+              ),
+            )
+                : const Text(
+              'Save',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ),
-        ),
-        centerTitle: true,
+        ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            20,
-            10,
-            20,
-            40,
-          ),
-          child: Form(
-            key: _formKey,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                _buildProfilePicture(theme),
-                const SizedBox(height: 28),
+                _buildAvatarSection(theme),
+                const SizedBox(height: 24),
                 _buildSectionCard(
-                  title: 'Personal Information',
+                  title: 'Basic Info',
                   icon: Icons.person_outline,
                   theme: theme,
                   children: [
@@ -255,28 +327,26 @@ class _EditProfileViewState extends State<EditProfileView> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    _buildDropdown(
-                      label: 'Looking For',
-                      icon: Icons.favorite_border,
-                      value: _lookingFor,
-                      items: const [
-                        'Friendship',
-                        'Relationship',
-                        'Both',
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            controller: _heightController,
+                            label: 'Height (cm)',
+                            icon: Icons.height,
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTextField(
+                            controller: _weightController,
+                            label: 'Weight (kg)',
+                            icon: Icons.monitor_weight_outlined,
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
                       ],
-                      displayValues: const {
-                        'Friendship': 'Friendship',
-                        'Relationship': 'Relationship',
-                        'Both':
-                        'Friendship or relationship',
-                      },
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _lookingFor = value;
-                          });
-                        }
-                      },
                     ),
                   ],
                 ),
@@ -289,60 +359,99 @@ class _EditProfileViewState extends State<EditProfileView> {
                     _buildTextField(
                       controller: _bioController,
                       label: 'Bio',
-                      icon: Icons.notes_outlined,
+                      icon: Icons.description_outlined,
                       maxLines: 4,
-                      maxLength: 150,
+                      maxLength: 250,
                       hintText:
-                      'Tell others about yourself...',
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return 'Please enter a short bio.';
-                        }
-
-                        return null;
-                      },
+                      'Tell others a bit about yourself...',
                     ),
-                    const SizedBox(height: 16),
-                    _buildInterestsSelection(theme),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildSectionCard(
+                  title: 'Interests',
+                  icon: Icons.interests_outlined,
+                  theme: theme,
+                  children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: _predefinedInterests
+                          .map((interest) {
+                        final isSelected =
+                        _selectedInterests.contains(
+                          interest,
+                        );
+
+                        return FilterChip(
+                          label: Text(interest),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedInterests.add(
+                                  interest,
+                                );
+                              } else {
+                                _selectedInterests
+                                    .remove(
+                                  interest,
+                                );
+                              }
+                            });
+                          },
+                          selectedColor: theme
+                              .colorScheme.primary
+                              .withValues(
+                            alpha: 0.25,
+                          ),
+                          checkmarkColor: theme
+                              .colorScheme.primary,
+                          labelStyle: TextStyle(
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : Colors.white70,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                          backgroundColor:
+                          theme.colorScheme.surface,
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                            BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : Colors.white12,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: FilledButton.icon(
-                    onPressed:
-                    widget.controller.isBusy
-                        ? null
-                        : _save,
-                    icon: widget.controller.isBusy
-                        ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child:
-                      CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                        : const Icon(
-                      Icons.check_circle_outline,
+                ElevatedButton(
+                  onPressed: widget.controller.isBusy
+                      ? null
+                      : _saveProfile,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize:
+                    const Size.fromHeight(52),
+                    backgroundColor:
+                    theme.colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                      BorderRadius.circular(16),
                     ),
-                    label: Text(
-                      widget.controller.isBusy
-                          ? 'Saving...'
-                          : 'Save Changes',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: theme.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                        BorderRadius.circular(18),
-                      ),
+                  ),
+                  child: const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -354,232 +463,83 @@ class _EditProfileViewState extends State<EditProfileView> {
     );
   }
 
-  Widget _buildProfilePicture(
-      ColorScheme theme,
-      ) {
-    return Column(
-      children: [
-        Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    theme.primary,
-                    theme.secondary,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: CircleAvatar(
-                radius: 65,
-                backgroundColor:
-                const Color(0xFF1E293B),
-                backgroundImage:
-                _profileImageBytes != null
-                    ? MemoryImage(
-                  _profileImageBytes!,
-                )
-                    : null,
-                child: _profileImageBytes == null
-                    ? const Icon(
-                  Icons.person,
-                  size: 65,
-                  color: Colors.white54,
-                )
-                    : null,
-              ),
-            ),
-            InkWell(
-              onTap: _pickProfilePicture,
-              borderRadius:
-              BorderRadius.circular(50),
+  Widget _buildAvatarSection(ThemeData theme) {
+    return Center(
+      child: Stack(
+        children: [
+          CircleAvatar(
+            radius: 54,
+            backgroundColor: theme.colorScheme.surface,
+            backgroundImage: _profileImageBytes != null
+                ? MemoryImage(_profileImageBytes!)
+                : null,
+            child: _profileImageBytes == null
+                ? Icon(
+              Icons.person,
+              size: 58,
+              color: theme.colorScheme.primary,
+            )
+                : null,
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: InkWell(
+              onTap: () => _showImagePickerSheet(theme),
+              borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.all(11),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: theme.primary,
+                  color: theme.colorScheme.primary,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFF0F172A),
-                    width: 4,
+                    color: theme.scaffoldBackgroundColor,
+                    width: 3,
                   ),
                 ),
                 child: const Icon(
                   Icons.camera_alt,
-                  size: 21,
+                  size: 20,
                   color: Colors.white,
                 ),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        const Text(
-          'Profile Picture',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 5),
-        const Text(
-          'Tap the camera icon to upload a photo',
-          style: TextStyle(
-            color: Colors.white54,
-            fontSize: 13,
-          ),
-        ),
-        if (_profileImageBytes != null) ...[
-          const SizedBox(height: 6),
-          TextButton.icon(
-            onPressed: _removeProfilePicture,
-            icon: const Icon(
-              Icons.delete_outline,
-              color: Colors.redAccent,
-            ),
-            label: const Text(
-              'Remove Photo',
-              style: TextStyle(
-                color: Colors.redAccent,
-              ),
-            ),
           ),
         ],
-      ],
-    );
-  }
-
-  Widget _buildInterestsSelection(ColorScheme theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.interests_outlined, size: 20, color: theme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Interests (${_selectedInterests.length}/6)',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8.0,
-          runSpacing: 4.0,
-          children: _predefinedInterests.map((interest) {
-            final isSelected = _selectedInterests.contains(interest);
-            return FilterChip(
-              label: Text(interest),
-              selected: isSelected,
-              onSelected: (selected) {
-                setState(() {
-                  if (selected) {
-                    if (_selectedInterests.length < 6) {
-                      _selectedInterests.add(interest);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Maximum 6 interests allowed'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  } else {
-                    _selectedInterests.remove(interest);
-                  }
-                });
-              },
-              selectedColor: theme.primary.withValues(alpha: 0.2),
-              checkmarkColor: theme.primary,
-              labelStyle: TextStyle(
-                color: isSelected ? theme.primary : Colors.white70,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-              backgroundColor: const Color(0xFF0F172A),
-              side: BorderSide(
-                color: isSelected ? theme.primary : Colors.white10,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            );
-          }).toList(),
-        ),
-        if (_selectedInterests.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 8.0),
-            child: Text(
-              'Please select at least one interest.',
-              style: TextStyle(color: Colors.redAccent, fontSize: 12),
-            ),
-          ),
-      ],
+      ),
     );
   }
 
   Widget _buildSectionCard({
     required String title,
     required IconData icon,
-    required ColorScheme theme,
+    required ThemeData theme,
     required List<Widget> children,
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.14),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: theme.primary
-                      .withValues(alpha: 0.12),
-                  borderRadius:
-                  BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: theme.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
+              Icon(icon, color: theme.colorScheme.primary),
+              const SizedBox(width: 10),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           ...children,
         ],
       ),
@@ -590,8 +550,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
-    TextInputType keyboardType =
-        TextInputType.text,
+    TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
     int? maxLength,
     String? hintText,
@@ -613,25 +572,6 @@ class _EditProfileViewState extends State<EditProfileView> {
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: Colors.white.withValues(alpha: 0.06),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Color(0xFF3B82F6),
-            width: 1.5,
-          ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Colors.redAccent,
-          ),
-        ),
       ),
     );
   }
@@ -644,14 +584,8 @@ class _EditProfileViewState extends State<EditProfileView> {
     Map<String, String>? displayValues,
     required ValueChanged<String?> onChanged,
   }) {
-    String? safeValue;
-
-    if (items.contains(value)) {
-      safeValue = value;
-    }
-
     return DropdownButtonFormField<String>(
-      initialValue: safeValue,
+      initialValue: items.contains(value) ? value : items.first,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
@@ -661,29 +595,59 @@ class _EditProfileViewState extends State<EditProfileView> {
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: Colors.white.withValues(alpha: 0.06),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Color(0xFF3B82F6),
-            width: 1.5,
-          ),
-        ),
       ),
       items: items.map((item) {
         return DropdownMenuItem<String>(
           value: item,
-          child: Text(
-            displayValues?[item] ?? item,
-          ),
+          child: Text(displayValues?[item] ?? item),
         );
       }).toList(),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _ImagePickerOption extends StatelessWidget {
+  const _ImagePickerOption({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 24,
+          vertical: 12,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 32,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

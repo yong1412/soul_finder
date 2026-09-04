@@ -713,7 +713,67 @@ class UserDashboardView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Height & Weight Card (if specified)
+          if (user.heightCm != null || user.weightKg != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: theme.surface,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  if (user.heightCm != null)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.height, color: Color(0xFF38BDF8)),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Height', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${user.heightCm!.toStringAsFixed(0)} cm',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (user.heightCm != null && user.weightKg != null)
+                    Container(width: 1, height: 36, color: Colors.white12),
+                  if (user.weightKg != null)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 12),
+                          const Icon(Icons.monitor_weight_outlined, color: Color(0xFF10B981)),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Weight', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${user.weightKg!.toStringAsFixed(0)} kg',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
 
           Container(
             width: double.infinity,
@@ -727,39 +787,6 @@ class UserDashboardView extends StatelessWidget {
               crossAxisAlignment:
               CrossAxisAlignment.start,
               children: [
-
-                // Looking For
-                Row(
-                  children: [
-                    Icon(
-                      Icons.favorite_outline,
-                      color: theme.secondary,
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Looking For',
-                      style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  user.lookingFor == 'Both'
-                      ? 'Friendship or relationship'
-                      : user.lookingFor,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-
                 // Interests
                 Row(
                   children: [

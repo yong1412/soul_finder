@@ -277,14 +277,22 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                       ? 'Not specified'
                       : profile.gender,
                 ),
-                const SizedBox(height: 14),
-                _InformationRow(
-                  icon: Icons.search,
-                  label: 'Looking for',
-                  value: profile.lookingFor.trim().isEmpty
-                      ? 'Not specified'
-                      : profile.lookingFor,
-                ),
+                if (profile.heightCm != null) ...[
+                  const SizedBox(height: 14),
+                  _InformationRow(
+                    icon: Icons.height,
+                    label: 'Height',
+                    value: '${profile.heightCm!.toStringAsFixed(0)} cm',
+                  ),
+                ],
+                if (profile.weightKg != null) ...[
+                  const SizedBox(height: 14),
+                  _InformationRow(
+                    icon: Icons.monitor_weight_outlined,
+                    label: 'Weight',
+                    value: '${profile.weightKg!.toStringAsFixed(0)} kg',
+                  ),
+                ],
               ],
             ),
           ),

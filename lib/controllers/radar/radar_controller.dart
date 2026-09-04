@@ -171,29 +171,39 @@ class RadarController extends ChangeNotifier {
     // ⏰ 2. Start periodic timer to accumulate stay duration even when phone is stationary
     _startStayTimer();
 
-    final hasPermission = await _locationService.handleLocationPermission();
-    if (!hasPermission) return;
+    try {
+      final hasPermission = await _locationService.handleLocationPermission();
+      if (!hasPermission) return;
 
-    final position = await _locationService.getCurrentLocation();
-    if (position != null) {
-      _updatePosition(position);
+      final position = await _locationService.getCurrentLocation();
+      if (position != null) {
+        _updatePosition(position);
+      }
+
+      _positionSubscription = _locationService.getLocationStream().listen((position) {
+        _updatePosition(position);
+      }, onError: (e) {
+        debugPrint("Location stream notice: $e");
+      });
+    } catch (e) {
+      debugPrint("Location tracking start notice: $e");
     }
-
-    _positionSubscription = _locationService.getLocationStream().listen((position) {
-      _updatePosition(position);
-    });
   }
 
   /// ⏰ Periodic timer running every 30 seconds to update stay duration and sync to Firestore
   void _startStayTimer() {
     _stayTimer?.cancel();
     _stayTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (currentStationHotspot != null) {
-        _recordStationStay(currentStationHotspot!);
-        notifyListeners();
-      } else if (nearestStation != null && (minDistanceToStation ?? 1.0) <= 0.25) {
-        _recordStationStay(nearestStation!);
-        notifyListeners();
+      try {
+        if (currentStationHotspot != null) {
+          _recordStationStay(currentStationHotspot!);
+          notifyListeners();
+        } else if (nearestStation != null && (minDistanceToStation ?? 1.0) <= 0.25) {
+          _recordStationStay(nearestStation!);
+          notifyListeners();
+        }
+      } catch (e) {
+        debugPrint("Notice in stay timer: $e");
       }
     });
   }
@@ -372,21 +382,16 @@ class RadarController extends ChangeNotifier {
         _addToRecentStations(station);
         _recordStationStay(station);
 
-        int soulsAtStation = 1 + random.nextInt(3);
+        int soulsAtStation = 2 + random.nextInt(3);
         for (int i = 0; i < soulsAtStation; i++) {
-          double offsetLat = (random.nextDouble() - 0.5) * 0.005;
-          final double offsetLng = (random.nextDouble() - 0.5) * 0.005;
-
-          double relativeLat = (station.latitude + offsetLat) - current.latitude;
-          double relativeLng = (station.longitude + offsetLng) - current.longitude;
-
-          double radarDist = math.sqrt(relativeLat * relativeLat + relativeLng * relativeLng) * 1000;
-          double angle = math.atan2(relativeLat, relativeLng);
+          double angle = (i * (2 * math.pi / soulsAtStation)) + (random.nextDouble() - 0.5) * 0.8;
+          // Spread dots out to outer radar rings (0.42 to 0.92 radius ratio) for clear visibility
+          double outerRadius = 0.42 + (random.nextDouble() * 0.50);
 
           dots.add(RadarDot(
-            distance: (radarDist / radarRadius).clamp(0.1, 0.98),
+            distance: outerRadius,
             angle: angle,
-            size: 4.0 + random.nextDouble() * 4,
+            size: 6.0 + random.nextDouble() * 4,
           ));
         }
       }
