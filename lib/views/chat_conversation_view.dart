@@ -1,10 +1,17 @@
 import 'dart:async';
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/chat_message.dart';
 import '../services/chat_service.dart';
+import '../services/cloudinary_service.dart';
+import '../services/match_service.dart';
+import 'full_screen_image_view.dart';
+import 'public_user_profile_view.dart';
+import 'video_player_view.dart';
 
 class ChatConversationView extends StatefulWidget {
   const ChatConversationView({
@@ -23,17 +30,21 @@ class ChatConversationView extends StatefulWidget {
 
 class _ChatConversationViewState extends State<ChatConversationView> {
   final ChatService _chatService = ChatService();
+  final MatchService _matchService = MatchService();
+  final ImagePicker _picker = ImagePicker();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
   StreamSubscription<List<ChatMessage>>? _messageSubscription;
   bool _isSending = false;
   String? _lastReadMessageId;
+  ImageProvider? _targetProfileImage;
 
   @override
   void initState() {
     super.initState();
     _setupMessageListener();
+    _loadTargetProfileData();
   }
 
   @override
@@ -42,6 +53,59 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Load target user's profile image for AppBar & Avatar rendering
+  Future<void> _loadTargetProfileData() async {
+    final candidate = await _matchService.getCandidateForUid(widget.targetUserUid);
+    if (candidate != null && mounted) {
+      final base64Str = candidate.profile.profileImageBase64.trim();
+      if (base64Str.isNotEmpty) {
+        try {
+          final cleanBase64 = base64Str.contains(',')
+              ? base64Str.substring(base64Str.indexOf(',') + 1)
+              : base64Str;
+          setState(() {
+            _targetProfileImage = MemoryImage(base64Decode(cleanBase64));
+          });
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Open target user's full profile view on Avatar tap
+  Future<void> _openTargetUserProfile() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final candidate = await _matchService.getCandidateForUid(widget.targetUserUid);
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      if (candidate != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PublicUserProfileView(candidate: candidate),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load user profile.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   void _setupMessageListener() {
@@ -100,6 +164,199 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     }
   }
 
+  /// Show modal sheet to choose photo or video from Camera/Gallery
+  void _showMediaPickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF3B82F6),
+                  child: Icon(Icons.photo_library, color: Colors.white),
+                ),
+                title: const Text('Choose Photo from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(
+                    type: ChatMessageType.image,
+                    source: ImageSource.gallery,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF10B981),
+                  child: Icon(Icons.camera_alt, color: Colors.white),
+                ),
+                title: const Text('Take Photo with Camera', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(
+                    type: ChatMessageType.image,
+                    source: ImageSource.camera,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFF59E0B),
+                  child: Icon(Icons.video_library, color: Colors.white),
+                ),
+                title: const Text('Choose Video (Max 30s)', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(
+                    type: ChatMessageType.video,
+                    source: ImageSource.gallery,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFF43F5E),
+                  child: Icon(Icons.videocam, color: Colors.white),
+                ),
+                title: const Text('Record Video (Max 30s)', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(
+                    type: ChatMessageType.video,
+                    source: ImageSource.camera,
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Pick photo/video, validate video length <= 30s, upload to Cloudinary and send message
+  Future<void> _pickAndSendMedia({
+    required ChatMessageType type,
+    required ImageSource source,
+  }) async {
+    final bool isVideo = type == ChatMessageType.video;
+    final XFile? file = isVideo
+        ? await _picker.pickVideo(
+            source: source,
+            maxDuration: const Duration(seconds: 30),
+          )
+        : await _picker.pickImage(
+            source: source,
+            imageQuality: 70,
+          );
+
+    if (file != null) {
+      if (isVideo) {
+        final duration = await _getVideoDuration(file.path);
+        if (duration > const Duration(seconds: 30, milliseconds: 500)) {
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: const Color(0xFF1E293B),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
+                    SizedBox(width: 8),
+                    Text('Video Too Long', style: TextStyle(color: Colors.white, fontSize: 18)),
+                  ],
+                ),
+                content: Text(
+                  'The selected video is ${duration.inSeconds} seconds long.\n\nPlease choose or record a video that is 30 seconds or shorter.',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK', style: TextStyle(color: Color(0xFF3B82F6), fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      if (!mounted) return;
+
+      // Show uploading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Card(
+            color: const Color(0xFF1E293B),
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    isVideo ? 'Uploading Video (Max 30s)...' : 'Uploading Image...',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      try {
+        final mediaUrl = await CloudinaryService.uploadMedia(file, isVideo: isVideo);
+
+        if (mounted) Navigator.pop(context); // Close loading dialog
+
+        await _chatService.sendMediaMessage(
+          targetUserUid: widget.targetUserUid,
+          type: type,
+          mediaUrl: mediaUrl,
+        );
+        _scrollToBottom();
+      } catch (e) {
+        if (mounted) Navigator.pop(context); // Close loading dialog
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Upload failed: $e'),
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<Duration> _getVideoDuration(String path) async {
+    try {
+      final player = Player();
+      await player.open(Media(path), play: false);
+      await Future.delayed(const Duration(milliseconds: 300));
+      final duration = player.state.duration;
+      await player.dispose();
+      return duration;
+    } catch (_) {
+      return Duration.zero;
+    }
+  }
+
   Future<void> _sendLocationResponse({
     required ChatMessage message,
     required bool accepted,
@@ -153,50 +410,11 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     }
   }
 
-  Future<void> _openLocation(String location) async {
-    final trimmed = location.trim();
-    final parsedUri = Uri.tryParse(trimmed);
-
-    final isWebLink = parsedUri != null &&
-        parsedUri.hasScheme &&
-        (parsedUri.scheme == 'https' || parsedUri.scheme == 'http');
-
-    final Uri uri = isWebLink
-        ? parsedUri
-        : Uri.https(
-      'www.google.com',
-      '/maps/search/',
-      {
-        'api': '1',
-        'query': trimmed,
-      },
-    );
-
-    final opened = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-
-    if (!opened) {
-      _showError('Unable to open the map.');
-    }
-  }
-
-  Future<void> _openProposalMap(ChatMessage message) async {
-    final venue = message.venue;
-    if (venue == null) return;
-
-    final value = venue.mapsUrl.isNotEmpty
-        ? venue.mapsUrl
-        : '${venue.latitude},${venue.longitude}';
-    await _openLocation(value);
-  }
-
-  void _showError(String text) {
+  void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(text),
+        content: Text(message),
         backgroundColor: Colors.redAccent,
       ),
     );
@@ -218,21 +436,48 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: Text(widget.targetUserName),
+        // 🎯 Tapping the Avatar/Name in AppBar opens the target user's full Profile
+        title: InkWell(
+          onTap: _openTargetUserProfile,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 17,
+                  backgroundColor: const Color(0xFF3B82F6),
+                  backgroundImage: _targetProfileImage,
+                  child: _targetProfileImage == null
+                      ? Text(
+                          _firstCharacter(widget.targetUserName),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.targetUserName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: 'Chat information',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Only matched users can access this chat.',
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.info_outline),
+            tooltip: 'View User Profile',
+            onPressed: _openTargetUserProfile,
+            icon: const Icon(Icons.person_outline),
           ),
         ],
       ),
@@ -298,7 +543,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        padding: const EdgeInsets.fromLTRB(8, 10, 12, 12),
         decoration: const BoxDecoration(
           color: Color(0xFF1E293B),
           border: Border(
@@ -307,13 +552,25 @@ class _ChatConversationViewState extends State<ChatConversationView> {
         ),
         child: Row(
           children: [
+            // Media Attachment Button (Photos / Videos)
+            IconButton(
+              icon: const Icon(
+                Icons.add_photo_alternate_outlined,
+                color: Color(0xFF38BDF8),
+                size: 26,
+              ),
+              tooltip: 'Send Photo or Video',
+              onPressed: _showMediaPickerOptions,
+            ),
+            const SizedBox(width: 4),
+
             Expanded(
               child: TextField(
                 controller: _messageController,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendTextMessage(),
                 decoration: InputDecoration(
-                  hintText: 'Type a message',
+                  hintText: 'Type a message...',
                   filled: true,
                   fillColor: const Color(0xFF0F172A),
                   border: OutlineInputBorder(
@@ -332,10 +589,10 @@ class _ChatConversationViewState extends State<ChatConversationView> {
               onPressed: _isSending ? null : _sendTextMessage,
               icon: _isSending
                   ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.send),
             ),
           ],
@@ -344,8 +601,86 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     );
   }
 
+  /// Render Message Item matching Interest Channel stream layout
   Widget _buildMessage(ChatMessage message) {
+    if (message.type == ChatMessageType.system) {
+      return _buildSystemMessage(message);
+    }
+
+    final isMine = message.senderUid == _chatService.currentUserUid;
+    final createdAt = message.createdAt ?? DateTime.now();
+    final timeStr = "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}";
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          // Left Avatar
+          GestureDetector(
+            onTap: isMine ? null : _openTargetUserProfile,
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: isMine ? const Color(0xFF3B82F6) : const Color(0xFF64748B),
+              backgroundImage: isMine ? null : _targetProfileImage,
+              child: (isMine || _targetProfileImage == null)
+                  ? Text(
+                      _firstCharacter(isMine ? 'You' : widget.targetUserName),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Message Content Column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Sender Name & Timestamp
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: isMine ? null : _openTargetUserProfile,
+                      child: Text(
+                        isMine ? "You" : widget.targetUserName,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isMine ? const Color(0xFF3B82F6) : const Color(0xFF38BDF8),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      timeStr,
+                      style: const TextStyle(fontSize: 10, color: Colors.white38),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+
+                _buildMessageContent(message, isMine),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageContent(ChatMessage message, bool isMine) {
     switch (message.type) {
+      case ChatMessageType.image:
+        return _buildMediaContent(message, isVideo: false, isMine: isMine);
+      case ChatMessageType.video:
+        return _buildMediaContent(message, isVideo: true, isMine: isMine);
       case ChatMessageType.meetingProposal:
         return _buildStructuredProposal(message);
       case ChatMessageType.system:
@@ -355,8 +690,120 @@ class _ChatConversationViewState extends State<ChatConversationView> {
         if (sharedLocation != null) {
           return _buildSharedLocationCard(message, sharedLocation);
         }
-        return _buildTextMessage(message);
+        return _buildTextContent(message, isMine);
     }
+  }
+
+  Widget _buildTextContent(ChatMessage message, bool isMine) {
+    return GestureDetector(
+      onLongPress: isMine ? () => _showMessageOptions(message) : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isMine ? const Color(0xFF1E3A8A) : const Color(0xFF1E293B),
+          borderRadius: const BorderRadius.only(
+            topRight: Radius.circular(14),
+            bottomLeft: Radius.circular(14),
+            bottomRight: Radius.circular(14),
+          ),
+          border: isMine ? Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.5), width: 1) : null,
+        ),
+        child: Text(
+          message.text,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaContent(ChatMessage message, {required bool isVideo, required bool isMine}) {
+    final mediaUrl = message.mediaUrl;
+
+    return GestureDetector(
+      onLongPress: isMine ? () => _showMessageOptions(message) : null,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: isMine ? const Color(0xFF1E3A8A) : const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(14),
+          border: isMine ? Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.5), width: 1) : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: mediaUrl == null
+              ? const SizedBox(
+                  width: 180,
+                  height: 120,
+                  child: Center(
+                    child: Icon(Icons.broken_image, color: Colors.white38),
+                  ),
+                )
+              : (isVideo
+                  ? GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => VideoPlayerView(
+                              videoUrl: mediaUrl,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 220,
+                        height: 130,
+                        decoration: BoxDecoration(
+                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(10),
+                          image: DecorationImage(
+                            image: NetworkImage(
+                              CloudinaryService.getVideoThumbnail(mediaUrl),
+                            ),
+                            fit: BoxFit.cover,
+                            opacity: 0.7,
+                          ),
+                        ),
+                        child: const Center(
+                          child: CircleAvatar(
+                            backgroundColor: Colors.black45,
+                            radius: 22,
+                            child: Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FullScreenImageView(
+                              imageUrl: mediaUrl,
+                              heroTag: 'msg_${message.id}',
+                            ),
+                          ),
+                        );
+                      },
+                      child: Hero(
+                        tag: 'msg_${message.id}',
+                        child: Image.network(
+                          mediaUrl,
+                          width: 220,
+                          height: 200,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.broken_image, color: Colors.white24),
+                        ),
+                      ),
+                    )),
+        ),
+      ),
+    );
   }
 
   void _showMessageOptions(ChatMessage message) {
@@ -451,380 +898,370 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     }
   }
 
-  Widget _buildTextMessage(ChatMessage message) {
-    final isMine = message.senderUid == _chatService.currentUserUid;
-
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: isMine ? () => _showMessageOptions(message) : null,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 320),
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          decoration: BoxDecoration(
-            color: isMine
-                ? const Color(0xFF2563EB)
-                : const Color(0xFF1E293B),
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(18),
-              topRight: const Radius.circular(18),
-              bottomLeft: Radius.circular(isMine ? 18 : 4),
-              bottomRight: Radius.circular(isMine ? 4 : 18),
-            ),
-          ),
-          child: Text(message.text),
+  Widget _buildSystemMessage(ChatMessage message) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 8,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF334155).withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        message.text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 12,
         ),
       ),
     );
   }
 
   Widget _buildSharedLocationCard(
-      ChatMessage message,
-      _SharedLocation location,
-      ) {
+    ChatMessage message,
+    _SharedLocation sharedLocation,
+  ) {
     final isMine = message.senderUid == _chatService.currentUserUid;
-    final hasResponded =
-        message.status == MeetingProposalStatus.accepted ||
-            message.status == MeetingProposalStatus.declined;
-    final canRespond = !isMine && !hasResponded;
 
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 360),
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFF3B82F6)),
+    return Container(
+      width: 300,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF3B82F6).withValues(alpha: 0.5),
+          width: 1,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Color(0x333B82F6),
-                  child: Icon(
-                    Icons.location_on,
-                    color: Color(0xFF60A5FA),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Meeting Place Suggestion',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              location.name,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.place,
+                color: Color(0xFFF43F5E),
+                size: 20,
               ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              location.category,
-              style: const TextStyle(color: Color(0xFF60A5FA)),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(
-                  Icons.link,
-                  size: 18,
-                  color: Colors.white60,
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    location.isLink
-                        ? 'Map link ready'
-                        : location.location,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white70),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  sharedLocation.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.white,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _openLocation(location.location),
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('Open Map'),
-              ),
-            ),
-            if (canRespond) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _isSending
-                          ? null
-                          : () => _sendLocationResponse(
-                        message: message,
-                        accepted: true,
-                      ),
-                      icon: const Icon(Icons.check),
-                      label: const Text('Accept'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _isSending
-                          ? null
-                          : () => _sendLocationResponse(
-                        message: message,
-                        accepted: false,
-                      ),
-                      icon: const Icon(Icons.close),
-                      label: const Text('Decline'),
-                    ),
-                  ),
-                ],
-              ),
-            ] else if (hasResponded) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    message.status == MeetingProposalStatus.accepted
-                        ? Icons.check_circle
-                        : Icons.cancel,
-                    color: message.status == MeetingProposalStatus.accepted
-                        ? Colors.greenAccent
-                        : Colors.redAccent,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    message.status == MeetingProposalStatus.accepted
-                        ? 'Meeting place accepted'
-                        : 'Meeting place declined',
-                    style: TextStyle(
-                      color:
-                      message.status == MeetingProposalStatus.accepted
-                          ? Colors.greenAccent
-                          : Colors.redAccent,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              const SizedBox(height: 4),
-              const Text(
-                'Waiting for a response',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 12,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            sharedLocation.address,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _openMaps(sharedLocation.mapsUrl),
+                  icon: const Icon(Icons.map, size: 16),
+                  label: const Text('Open Map'),
+                ),
+              ),
+              if (!isMine) ...[
+                const SizedBox(width: 8),
+                if (message.status == MeetingProposalStatus.none) ...[
+                  IconButton(
+                    tooltip: 'Accept place',
+                    onPressed: () => _sendLocationResponse(
+                      message: message,
+                      accepted: true,
+                    ),
+                    icon: const Icon(
+                      Icons.check_circle_outline,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Decline place',
+                    onPressed: () => _sendLocationResponse(
+                      message: message,
+                      accepted: false,
+                    ),
+                    icon: const Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                ],
+              ],
+            ],
+          ),
+          if (message.status != MeetingProposalStatus.none) ...[
+            const SizedBox(height: 8),
+            Text(
+              message.status == MeetingProposalStatus.accepted
+                  ? '✓ Meeting place accepted'
+                  : '✕ Meeting place declined',
+              style: TextStyle(
+                color: message.status == MeetingProposalStatus.accepted
+                    ? const Color(0xFF10B981)
+                    : Colors.redAccent,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSystemMessage(ChatMessage message) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white10,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          message.text,
-          style: const TextStyle(color: Colors.white60, fontSize: 12),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildStructuredProposal(ChatMessage message) {
     final venue = message.venue;
-    if (venue == null) return const SizedBox.shrink();
+
+    if (venue == null) {
+      return _buildTextContent(message, message.senderUid == _chatService.currentUserUid);
+    }
 
     final isMine = message.senderUid == _chatService.currentUserUid;
-    final canRespond =
-        !isMine && message.status == MeetingProposalStatus.pending;
+    final isReceiver = message.receiverUid == _chatService.currentUserUid;
+    final isAccepted = message.status == MeetingProposalStatus.accepted;
+    final isDeclined = message.status == MeetingProposalStatus.declined;
 
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 360),
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _proposalColor(message.status)),
+    return Container(
+      width: 310,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isAccepted
+              ? const Color(0xFF10B981)
+              : isDeclined
+                  ? Colors.redAccent
+                  : const Color(0xFF3B82F6),
+          width: 1.5,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.location_on, color: Color(0xFF60A5FA)),
-                SizedBox(width: 8),
-                Text(
-                  'Meeting Place Proposal',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              venue.name,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.place_outlined,
+                color: isAccepted
+                    ? const Color(0xFF10B981)
+                    : isDeclined
+                        ? Colors.redAccent
+                        : const Color(0xFF3B82F6),
+                size: 20,
               ),
-            ),
-            Text(
-              venue.category,
-              style: const TextStyle(color: Color(0xFF60A5FA)),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              venue.address,
-              style: const TextStyle(color: Colors.white60),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _openProposalMap(message),
-              icon: const Icon(Icons.map_outlined),
-              label: const Text('Open Map'),
-            ),
-            if (canRespond) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  FilledButton(
-                    onPressed: () => _respondToProposal(
-                      message,
-                      MeetingProposalStatus.accepted,
-                    ),
-                    child: const Text('Accept'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  venue.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.white,
                   ),
-                  OutlinedButton(
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            venue.address,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${venue.category} • ${venue.distanceFromMidpointKm.toStringAsFixed(1)} km from midpoint',
+            style: const TextStyle(
+              color: Colors.white38,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isReceiver && message.status == MeetingProposalStatus.pending) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
                     onPressed: () => _respondToProposal(
                       message,
                       MeetingProposalStatus.declined,
                     ),
-                    child: const Text('Decline'),
+                    icon: const Icon(Icons.close, size: 16),
+                    label: const Text('Decline'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _respondToProposal(
+                      message,
+                      MeetingProposalStatus.accepted,
+                    ),
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('Accept'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (isAccepted) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: Color(0xFF10B981),
+                    size: 16,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Meeting Accepted 🎉',
+                    style: TextStyle(
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
-            ] else ...[
-              const SizedBox(height: 8),
-              Text(
-                _proposalLabel(message.status, isMine),
-                style: TextStyle(
-                  color: _proposalColor(message.status),
-                  fontWeight: FontWeight.w600,
-                ),
+            ),
+          ] else if (isDeclined) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
               ),
-            ],
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.cancel,
+                    color: Colors.redAccent,
+                    size: 16,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Meeting Declined',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: () => _openMaps(venue.mapsUrl),
+              icon: const Icon(Icons.map, size: 16),
+              label: const Text('View in Google Maps'),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  String _proposalLabel(MeetingProposalStatus status, bool isMine) {
-    switch (status) {
-      case MeetingProposalStatus.pending:
-        return isMine ? 'Waiting for response' : 'Response required';
-      case MeetingProposalStatus.accepted:
-        return 'Meeting confirmed';
-      case MeetingProposalStatus.declined:
-        return 'Proposal declined';
-      case MeetingProposalStatus.counterProposed:
-        return 'Another place requested';
-      case MeetingProposalStatus.none:
-        return '';
+  Future<void> _openMaps(String mapsUrl) async {
+    final uri = Uri.tryParse(mapsUrl);
+    if (uri == null) {
+      _showError('Invalid map URL.');
+      return;
+    }
+
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        _showError('Could not open Google Maps.');
+      }
+    } catch (_) {
+      _showError('Could not open Google Maps.');
     }
   }
 
-  Color _proposalColor(MeetingProposalStatus status) {
-    switch (status) {
-      case MeetingProposalStatus.accepted:
-        return Colors.greenAccent;
-      case MeetingProposalStatus.declined:
-        return Colors.redAccent;
-      case MeetingProposalStatus.counterProposed:
-        return Colors.orangeAccent;
-      case MeetingProposalStatus.pending:
-        return const Color(0xFF60A5FA);
-      case MeetingProposalStatus.none:
-        return Colors.white30;
-    }
+  String _firstCharacter(String name) {
+    return name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
   }
 }
 
 class _SharedLocation {
   const _SharedLocation({
-    required this.name,
-    required this.category,
-    required this.location,
+    required this.title,
+    required this.address,
+    required this.mapsUrl,
   });
 
-  final String name;
-  final String category;
-  final String location;
-
-  bool get isLink {
-    final uri = Uri.tryParse(location);
-    return uri != null &&
-        uri.hasScheme &&
-        (uri.scheme == 'https' || uri.scheme == 'http');
-  }
+  final String title;
+  final String address;
+  final String mapsUrl;
 
   static _SharedLocation? tryParse(String text) {
     if (!text.startsWith('📍 MEETING PLACE SUGGESTION')) {
       return null;
     }
 
-    String name = '';
-    String category = '';
-    String location = '';
-
-    for (final rawLine in text.split('\n')) {
-      final line = rawLine.trim();
-      if (line.startsWith('Place:')) {
-        name = line.substring('Place:'.length).trim();
-      } else if (line.startsWith('Category:')) {
-        category = line.substring('Category:'.length).trim();
-      } else if (line.startsWith('Location:')) {
-        location = line.substring('Location:'.length).trim();
-      }
+    final lines = text.split('\n');
+    if (lines.length < 3) {
+      return null;
     }
 
-    if (name.isEmpty || location.isEmpty) return null;
+    final title = lines[0].replaceFirst('📍 MEETING PLACE SUGGESTION: ', '');
+    final address = lines[1].replaceFirst('Address: ', '');
+    final mapsUrl = lines[2].replaceFirst('Map: ', '');
 
     return _SharedLocation(
-      name: name,
-      category: category.isEmpty ? 'Public place' : category,
-      location: location,
+      title: title,
+      address: address,
+      mapsUrl: mapsUrl,
     );
   }
 }

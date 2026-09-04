@@ -178,6 +178,54 @@ class ChatService {
     await batch.commit();
   }
 
+  Future<void> sendMediaMessage({
+    required String targetUserUid,
+    required ChatMessageType type,
+    required String mediaUrl,
+  }) async {
+    final currentUid = currentUserUid;
+    await _checkActiveMatch(targetUserUid);
+
+    final chatId = createChatId(currentUid, targetUserUid);
+    final messageReference = _messageCollection(chatId).doc();
+
+    final lastMsgText = type == ChatMessageType.image ? '📷 Photo' : '🎥 Video';
+
+    final message = ChatMessage(
+      id: messageReference.id,
+      chatId: chatId,
+      senderUid: currentUid,
+      receiverUid: targetUserUid,
+      type: type,
+      text: lastMsgText,
+      mediaUrl: mediaUrl,
+      status: MeetingProposalStatus.none,
+      acceptedBy: const [],
+    );
+
+    final batch = _firestore.batch();
+
+    batch.set(
+      messageReference,
+      message.toFirestore(),
+    );
+
+    batch.update(
+      _chatReference(chatId),
+      {
+        'chatId': chatId,
+        'lastMessage': lastMsgText,
+        'lastMessageType': type.name,
+        'lastSenderUid': currentUid,
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'unreadCounts.$targetUserUid': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+    );
+
+    await batch.commit();
+  }
+
   Future<void> respondToSharedLocation({
     required String chatId,
     required String messageId,

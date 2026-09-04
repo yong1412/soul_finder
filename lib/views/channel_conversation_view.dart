@@ -5,8 +5,10 @@ import 'package:media_kit/media_kit.dart';
 import '../models/channel.dart';
 import '../services/channel_service.dart';
 import '../services/cloudinary_service.dart';
+import '../services/match_service.dart';
 import '../controllers/auth_controller.dart';
 import 'full_screen_image_view.dart';
+import 'public_user_profile_view.dart';
 import 'video_player_view.dart';
 
 class ChannelConversationView extends StatefulWidget {
@@ -27,6 +29,7 @@ class ChannelConversationView extends StatefulWidget {
 
 class _ChannelConversationViewState extends State<ChannelConversationView> {
   final ChannelService _channelService = ChannelService();
+  final MatchService _matchService = MatchService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _picker = ImagePicker();
@@ -46,6 +49,43 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
     super.dispose();
   }
 
+  /// Open another user's profile on avatar tap
+  Future<void> _openUserProfile(String userUid) async {
+    if (userUid == widget.authController.currentUser?.uid) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final candidate = await _matchService.getCandidateForUid(userUid);
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      if (candidate != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PublicUserProfileView(candidate: candidate),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load user profile.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
   Future<void> _sendMessage({MessageType type = MessageType.text, String? mediaUrl}) async {
     final text = _messageController.text.trim();
     if (text.isEmpty && type == MessageType.text) return;
@@ -59,17 +99,19 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
     try {
       await _channelService.sendMessage(
         channelName: widget.channelId,
-        text: text,
         senderName: user.name,
-        senderProfileImage: user.profileImageBase64,
+        senderProfileImage: user.profileImageBase64 ?? '',
+        text: text,
         type: type,
         mediaUrl: mediaUrl,
       );
+
       _messageController.clear();
+      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text('Failed to send message: $e'), backgroundColor: Colors.redAccent),
         );
       }
     } finally {
@@ -77,26 +119,71 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
     }
   }
 
-  Future<Duration> _getVideoDuration(String filePath) async {
-    final player = Player();
-    try {
-      await player.open(Media(filePath), play: false);
-      final duration = await player.stream.duration
-          .firstWhere((d) => d > Duration.zero)
-          .timeout(
-            const Duration(seconds: 3),
-            onTimeout: () => player.state.duration,
-          );
-      return duration;
-    } catch (e) {
-      debugPrint("Error reading video duration: $e");
-      return Duration.zero;
-    } finally {
-      await player.dispose();
-    }
+  void _showMediaPickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF3B82F6),
+                  child: Icon(Icons.photo_library, color: Colors.white),
+                ),
+                title: const Text('Choose Photo from Gallery', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(type: MessageType.image, source: ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF10B981),
+                  child: Icon(Icons.camera_alt, color: Colors.white),
+                ),
+                title: const Text('Take Photo with Camera', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(type: MessageType.image, source: ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFF59E0B),
+                  child: Icon(Icons.video_library, color: Colors.white),
+                ),
+                title: const Text('Choose Video (Max 30s)', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(type: MessageType.video, source: ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFF43F5E),
+                  child: Icon(Icons.videocam, color: Colors.white),
+                ),
+                title: const Text('Record Video (Max 30s)', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendMedia(type: MessageType.video, source: ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Future<void> _pickMedia(MessageType type, ImageSource source) async {
+  Future<void> _pickAndSendMedia({required MessageType type, required ImageSource source}) async {
     final bool isVideo = type == MessageType.video;
     final XFile? file = isVideo 
         ? await _picker.pickVideo(
@@ -172,84 +259,68 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
 
       try {
         final mediaUrl = await CloudinaryService.uploadMedia(file, isVideo: isVideo);
-        
-        if (mounted) Navigator.pop(context); // Close loading dialog
-
-        await _sendMessage(
-          type: type,
-          mediaUrl: mediaUrl,
-        );
+        if (mounted) {
+          Navigator.of(context).pop();
+          _sendMessage(
+            type: type,
+            mediaUrl: mediaUrl,
+          );
+        }
       } catch (e) {
-        if (mounted) Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Upload failed: $e'), 
-            backgroundColor: Colors.redAccent,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Upload failed: $e'), 
+              backgroundColor: Colors.redAccent,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
       }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(
-        title: Column(
-          children: [
-            Text(widget.channelName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('Global Interests Chat', style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.5))),
-          ],
-        ),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<List<ChannelMessage>>(
-              stream: _messagesStream,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+  Future<Duration> _getVideoDuration(String path) async {
+    try {
+      final player = Player();
+      await player.open(Media(path), play: false);
+      await Future.delayed(const Duration(milliseconds: 300));
+      final duration = player.state.duration;
+      await player.dispose();
+      return duration;
+    } catch (_) {
+      return Duration.zero;
+    }
+  }
 
-                final messages = snapshot.data!;
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.forum_outlined, size: 64, color: Colors.white10),
-                        const SizedBox(height: 16),
-                        Text('Welcome to # ${widget.channelName}', style: const TextStyle(color: Colors.white38)),
-                        const Text('Start the conversation!', style: TextStyle(color: Colors.white24, fontSize: 12)),
-                      ],
-                    ),
-                  );
-                }
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
-                  reverse: true, // Newest at bottom
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    return _buildMessageItem(messages[index]);
-                  },
-                );
-              },
-            ),
-          ),
-          _buildInputArea(),
-        ],
-      ),
-    );
+  ImageProvider? _decodeProfileImage(String? base64Str) {
+    if (base64Str == null || base64Str.trim().isEmpty) return null;
+    try {
+      final cleanBase64 = base64Str.contains(',')
+          ? base64Str.substring(base64Str.indexOf(',') + 1)
+          : base64Str;
+      return MemoryImage(base64Decode(cleanBase64));
+    } catch (_) {
+      return null;
+    }
   }
 
   void _showMessageOptions(ChannelMessage message) {
-    final diffInSeconds = DateTime.now().difference(message.createdAt).inSeconds;
+    final createdAt = message.createdAt ?? DateTime.now();
+    final diffInSeconds = DateTime.now().difference(createdAt).inSeconds;
     final bool canDelete = diffInSeconds <= 180; // 3 minutes limit
 
     showModalBottomSheet(
@@ -342,45 +413,70 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
   Widget _buildMessageItem(ChannelMessage message) {
     final isMine = message.senderUid == widget.authController.currentUser?.uid;
     final profileImage = _decodeProfileImage(message.senderProfileImageBase64);
+    final timeStr = "${message.createdAt.hour.toString().padLeft(2, '0')}:${message.createdAt.minute.toString().padLeft(2, '0')}";
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start, // Standard top-to-bottom left-aligned channel message stream
         children: [
-          if (!isMine) ...[
-            CircleAvatar(
+          GestureDetector(
+            onTap: () => _openUserProfile(message.senderUid),
+            child: CircleAvatar(
               radius: 18,
+              backgroundColor: isMine ? const Color(0xFF3B82F6) : const Color(0xFF64748B),
               backgroundImage: profileImage,
-              child: profileImage == null ? const Icon(Icons.person, size: 18) : null,
+              child: profileImage == null
+                  ? Text(
+                      _firstCharacter(message.senderName),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
-            const SizedBox(width: 10),
-          ],
-          Flexible(
-            child: GestureDetector(
-              onLongPress: isMine ? () => _showMessageOptions(message) : null,
-              child: Column(
-                crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                children: [
-                  if (!isMine)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4, bottom: 4),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _openUserProfile(message.senderUid),
                       child: Text(
-                        message.senderName,
-                        style: const TextStyle(fontSize: 11, color: Colors.white54, fontWeight: FontWeight.bold),
+                        isMine ? "${message.senderName} (You)" : message.senderName,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isMine ? const Color(0xFF3B82F6) : const Color(0xFF38BDF8),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  Container(
+                    const SizedBox(width: 8),
+                    Text(
+                      timeStr,
+                      style: const TextStyle(fontSize: 10, color: Colors.white38),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                GestureDetector(
+                  onLongPress: isMine ? () => _showMessageOptions(message) : null,
+                  child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: isMine ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMine ? 16 : 4),
-                        bottomRight: Radius.circular(isMine ? 4 : 16),
+                      color: isMine ? const Color(0xFF1E3A8A) : const Color(0xFF1E293B),
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(14),
+                        bottomLeft: Radius.circular(14),
+                        bottomRight: Radius.circular(14),
                       ),
+                      border: isMine ? Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.5), width: 1) : null,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,11 +500,11 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
                                 tag: 'msg_${message.id}',
                                 child: Image.network(
                                   message.mediaUrl!,
-                                  width: 200,
+                                  width: 220,
                                   height: 200,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => 
-                                    const Icon(Icons.broken_image, color: Colors.white24),
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.broken_image, color: Colors.white24),
                                 ),
                               ),
                             ),
@@ -426,165 +522,157 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
                               );
                             },
                             child: Container(
-                              width: 200,
-                              height: 120,
+                              width: 220,
+                              height: 130,
                               decoration: BoxDecoration(
                                 color: Colors.black26,
                                 borderRadius: BorderRadius.circular(8),
                                 image: DecorationImage(
-                                  image: NetworkImage(CloudinaryService.getVideoThumbnail(message.mediaUrl!)),
+                                  image: NetworkImage(
+                                    CloudinaryService.getVideoThumbnail(message.mediaUrl!),
+                                  ),
                                   fit: BoxFit.cover,
-                                  opacity: 0.6,
+                                  opacity: 0.7,
                                 ),
                               ),
                               child: const Center(
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Icon(Icons.play_circle_fill, size: 50, color: Colors.white),
-                                  ],
+                                child: CircleAvatar(
+                                  backgroundColor: Colors.black45,
+                                  radius: 22,
+                                  child: Icon(
+                                    Icons.play_arrow,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         if (message.text.isNotEmpty)
                           Padding(
-                            padding: EdgeInsets.only(top: message.mediaUrl != null ? 8.0 : 0.0),
-                            child: Text(message.text, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                            padding: EdgeInsets.only(
+                              top: (message.type != MessageType.text && message.mediaUrl != null) ? 8.0 : 0,
+                            ),
+                            child: Text(
+                              message.text,
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                            ),
                           ),
                       ],
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                    child: Text(
-                      "${message.createdAt.hour}:${message.createdAt.minute.toString().padLeft(2, '0')}",
-                      style: const TextStyle(fontSize: 9, color: Colors.white24),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          if (isMine) ...[
-            const SizedBox(width: 10),
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: profileImage,
-              child: profileImage == null ? const Icon(Icons.person, size: 18) : null,
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+  String _firstCharacter(String name) {
+    return name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      appBar: AppBar(
+        title: Text(widget.channelName),
+        centerTitle: true,
       ),
-      child: SafeArea(
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<List<ChannelMessage>>(
+              stream: _messagesStream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error loading messages: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final messages = snapshot.data!;
+                if (messages.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No messages yet. Start the conversation!',
+                      style: TextStyle(color: Colors.white54),
+                    ),
+                  );
+                }
+
+                _scrollToBottom();
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    return _buildMessageItem(messages[index]);
+                  },
+                );
+              },
+            ),
+          ),
+          _buildMessageInput(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        color: const Color(0xFF1E293B),
         child: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: Colors.white54),
-              onPressed: () => _showMediaOptions(),
+              icon: const Icon(Icons.add_photo_alternate_outlined, color: Color(0xFF38BDF8)),
+              onPressed: _showMediaPickerOptions,
             ),
             Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: TextField(
-                  controller: _messageController,
-                  decoration: InputDecoration(
-                    hintText: 'Message # ${widget.channelName}',
-                    hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              child: TextField(
+                controller: _messageController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Type a message...',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
                   ),
-                  style: const TextStyle(color: Colors.white),
-                  maxLines: null,
                 ),
+                onSubmitted: (_) => _sendMessage(),
               ),
             ),
             const SizedBox(width: 8),
             IconButton(
-              onPressed: _isSending ? null : () => _sendMessage(),
-              icon: _isSending 
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              icon: _isSending
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(Icons.send, color: Color(0xFF3B82F6)),
+              onPressed: _isSending ? null : () => _sendMessage(),
             ),
           ],
         ),
       ),
     );
-  }
-
-  void _showMediaOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E293B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.camera_alt, color: Colors.greenAccent),
-                title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickMedia(MessageType.image, ImageSource.camera);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.videocam, color: Colors.redAccent),
-                title: const Text('Record Video (Max 30s)', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickMedia(MessageType.video, ImageSource.camera);
-                },
-              ),
-              const Divider(color: Colors.white10),
-              ListTile(
-                leading: const Icon(Icons.photo_library, color: Colors.blueAccent),
-                title: const Text('Choose Image from Gallery', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickMedia(MessageType.image, ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.video_library, color: Colors.purpleAccent),
-                title: const Text('Choose Video from Gallery', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickMedia(MessageType.video, ImageSource.gallery);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  ImageProvider? _decodeProfileImage(String base64) {
-    if (base64.isEmpty) return null;
-    try {
-      return MemoryImage(base64Decode(base64));
-    } catch (_) {
-      return null;
-    }
   }
 }

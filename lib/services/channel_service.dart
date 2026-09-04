@@ -66,7 +66,7 @@ class ChannelService {
         .collection('channels')
         .doc(channelName)
         .collection('messages')
-        .orderBy('createdAt', descending: true)
+        .orderBy('createdAt', descending: false)
         .limit(100)
         .snapshots()
         .map((snapshot) => snapshot.docs
