@@ -535,17 +535,21 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                           icon: const Icon(Icons.chat_bubble_outline),
                           label: const Text('Chat'),
                           style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF3B82F6),
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 15),
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: FilledButton.icon(
                           onPressed: _openMeetingPlanner,
                           icon: const Icon(Icons.restaurant_outlined),
                           label: const Text('Plan Meeting'),
-                          style: OutlinedButton.styleFrom(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF3B82F6),
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 15),
                           ),
                         ),
