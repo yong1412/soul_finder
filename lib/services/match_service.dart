@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/event_hotspot.dart';
@@ -164,29 +165,30 @@ class MatchService {
         return <MatchCandidate>[];
       }
 
+      final effectiveScanMode = (scanMode != null && scanMode.isNotEmpty)
+          ? scanMode
+          : currentProfile.radarMode;
+
       final candidates = <MatchCandidate>[];
       for (final other in profiles) {
         if (other.uid == currentUid) {
           continue;
         }
 
-        // Filter by intention if scanMode is specified ('friends' vs 'couple')
-        if (scanMode != null && scanMode.isNotEmpty) {
-          final lookingForLower = other.lookingFor.toLowerCase().trim();
-          if (scanMode == 'friends') {
-            final isFriendMatch = lookingForLower.contains('friend') ||
-                lookingForLower.contains('network') ||
-                lookingForLower == 'both' ||
-                lookingForLower.isEmpty;
-            if (!isFriendMatch) continue;
-          } else if (scanMode == 'couple') {
-            final isCoupleMatch = lookingForLower.contains('couple') ||
-                lookingForLower.contains('dating') ||
-                lookingForLower.contains('relat') ||
-                lookingForLower.contains('roman') ||
-                lookingForLower == 'both' ||
-                lookingForLower.isEmpty;
-            if (!isCoupleMatch) continue;
+        // 🎯 PUBLIC ONLINE FILTER: Only show users who are publicly ONLINE!
+        if (!other.isPubliclyOnline) {
+          continue;
+        }
+
+        // 🎯 RADAR MODE INTENT MATCHING ('friends' vs 'couple')
+        if (effectiveScanMode.isNotEmpty) {
+          final otherRadarMode = other.radarMode.toLowerCase().trim();
+          if (effectiveScanMode == 'couple') {
+            final matchesCouple = otherRadarMode == 'couple' || otherRadarMode.isEmpty;
+            if (!matchesCouple) continue;
+          } else if (effectiveScanMode == 'friends') {
+            final matchesFriends = otherRadarMode == 'friends' || otherRadarMode.isEmpty;
+            if (!matchesFriends) continue;
           }
         }
 
@@ -459,15 +461,17 @@ class MatchService {
   }
 
   Future<void> markNotificationRead(String notificationId) async {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) return;
     await _notificationItems(currentUid).doc(notificationId).update({
       'read': true,
       'readAt': FieldValue.serverTimestamp(),
-    });
+    }).catchError((e) => debugPrint("Notice marking notification read: $e"));
   }
 
   Future<void> removeLike(String targetUid) async {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) return;
     final matched = await _matches
         .doc(_matchId(currentUid, targetUid))
         .get();
@@ -480,7 +484,10 @@ class MatchService {
   }
 
   Stream<MatchPairData?> watchPair(String targetUid) {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value(null);
+    }
 
     return _users.snapshots().map((snapshot) {
       UserProfile? current;
@@ -512,11 +519,15 @@ class MatchService {
             ? (current.longitude! + other.longitude!) / 2
             : null,
       );
+    }).handleError((e) {
+      debugPrint("Error watching match pair: $e");
+      return null;
     });
   }
 
   Future<MatchCandidate?> getCandidateForUid(String targetUid) async {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) return null;
     final currentDoc = await _users.doc(currentUid).get();
     final targetDoc = await _users.doc(targetUid).get();
 

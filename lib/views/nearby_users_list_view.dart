@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/event_hotspot.dart';
@@ -10,7 +12,6 @@ import '../services/match_service.dart';
 import '../widgets/marquee_text.dart';
 import 'chat_conversation_view.dart';
 import 'public_user_profile_view.dart';
-import 'station_map_view.dart';
 
 class NearbyUsersListView extends StatefulWidget {
   const NearbyUsersListView({super.key});
@@ -25,7 +26,6 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
 
   // Mode filter: 'ALL' (All Souls - Privacy Protected), 'RADAR' (Radar Range 200m + Event Souls)
   String _activeFilter = 'ALL';
-  bool _isLoadingTab = false; // Loading transition flag when changing tabs
   Timer? _autoRefreshTimer; // Timer for auto-refreshing All Souls every 3 minutes
 
   @override
@@ -45,103 +45,101 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     super.dispose();
   }
 
+  Stream<UserProfile?> _watchCurrentUserProfile() {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value(null);
+    }
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUid)
+        .snapshots()
+        .map((doc) => doc.exists && doc.data() != null ? UserProfile.fromJson(doc.data()!) : null)
+        .handleError((_) => null);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // 1. Streamlined Top Filter Bar (All Souls & Radar Range 200m)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: const Color(0xFF0F172A),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildFilterChip('ALL', 'All Souls', Icons.people_outline),
-              const SizedBox(width: 12),
-              _buildFilterChip('RADAR', 'Radar Range (200m)', Icons.radar),
-            ],
-          ),
-        ),
+    return StreamBuilder<UserProfile?>(
+      stream: _watchCurrentUserProfile(),
+      builder: (context, userSnapshot) {
+        final radiusKm = userSnapshot.data?.discoveryRadius ?? 0.2;
+        final radiusMeters = (radiusKm * 1000).round().clamp(50, 200);
 
-        // 2. Main Content View with Loading Screen Transition
-        Expanded(
-          child: _isLoadingTab
-              ? _buildLoadingScreen()
-              : _buildSoulsView(),
-        ),
-      ],
+        final isCoupleMode = userSnapshot.data?.radarMode == 'couple';
+        final currentRadarMode = userSnapshot.data?.radarMode ?? 'friends';
+        final themeColor = isCoupleMode
+            ? const Color(0xFFF43F5E) // 🌹 Rose Red for Find Couple mode!
+            : const Color(0xFF38BDF8); // 💙 Sky Blue for Find Friends mode!
+
+        return Column(
+          children: [
+            // 1. Streamlined Top Filter Bar (All Souls & Dynamic Radar Range)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: const Color(0xFF0F172A),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildFilterChip('ALL', 'All Souls', Icons.people_outline, themeColor),
+                  const SizedBox(width: 12),
+                  _buildFilterChip(
+                    'RADAR',
+                    'Radar Range (${radiusMeters}m)',
+                    isCoupleMode ? Icons.favorite : Icons.radar,
+                    themeColor,
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Main Content View with BLAZING FAST 0ms Instant Transition
+            Expanded(
+              child: _buildSoulsView(radiusMeters, themeColor, currentRadarMode),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  /// Filter Chip with Loading Transition Trigger
-  Widget _buildFilterChip(String key, String label, IconData icon) {
+  /// Filter Chip with Instant 0ms Transition & Dynamic Mode Color
+  Widget _buildFilterChip(String key, String label, IconData icon, Color themeColor) {
     final isSelected = _activeFilter == key;
     return ChoiceChip(
       avatar: Icon(
         icon,
         size: 16,
-        color: isSelected ? Colors.black : const Color(0xFF38BDF8),
+        color: isSelected ? Colors.white : themeColor,
       ),
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
         if (selected && _activeFilter != key) {
           setState(() {
-            _activeFilter = key;
-            _isLoadingTab = true; // 🎯 Trigger Loading Screen
-          });
-
-          // Smooth transition delay to display loading state
-          Future.delayed(const Duration(milliseconds: 350), () {
-            if (mounted) {
-              setState(() {
-                _isLoadingTab = false;
-              });
-            }
+            _activeFilter = key; // 🚀 Instant 0ms Switch!
           });
         }
       },
-      selectedColor: const Color(0xFF38BDF8),
+      selectedColor: themeColor,
       backgroundColor: const Color(0xFF1E293B),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? themeColor : themeColor.withValues(alpha: 0.3),
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
       labelStyle: TextStyle(
-        color: isSelected ? Colors.black : const Color(0xFFCBD5E1),
+        color: isSelected ? Colors.white : const Color(0xFFCBD5E1),
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         fontSize: 13,
       ),
     );
   }
 
-  /// Loading Screen displayed when switching options
-  Widget _buildLoadingScreen() {
-    final String loadingLabel = _activeFilter == 'RADAR'
-        ? 'Scanning Radar & Event Souls (200m)...'
-        : 'Discovering All Souls...';
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(
-            color: Color(0xFF38BDF8),
-            strokeWidth: 3,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            loadingLabel,
-            style: const TextStyle(
-              color: Color(0xFF94A3B8),
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build Souls List (All Souls with Privacy or Radar 200m Range including Event Souls)
-  Widget _buildSoulsView() {
+  /// Build Souls List (All Souls with Privacy or Dynamic Radar Range including Event Souls)
+  Widget _buildSoulsView(int radiusMeters, Color themeColor, String currentRadarMode) {
     final filterByRadius = _activeFilter == 'RADAR';
     final isAllSoulsMode = _activeFilter == 'ALL';
 
@@ -151,7 +149,10 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
         final likedUserIds = likedSnapshot.data ?? {};
 
         return StreamBuilder<List<MatchCandidate>>(
-          stream: _matchService.watchCandidates(filterByRadius: filterByRadius),
+          stream: _matchService.watchCandidates(
+            filterByRadius: filterByRadius,
+            scanMode: currentRadarMode, // 🎯 Synchronous Mode Binding!
+          ),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return Center(
@@ -167,7 +168,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
             }
 
             if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+              return _buildSkeletonList(); // ⚡ Instant Skeleton Placeholder
             }
 
             var candidates = snapshot.data!;
@@ -190,7 +191,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                       const Icon(Icons.person_search, size: 80, color: Colors.white24),
                       const SizedBox(height: 20),
                       Text(
-                        filterByRadius ? 'No souls or events in 200m range' : 'No souls found yet',
+                        filterByRadius ? 'No souls or events in ${radiusMeters}m range' : 'No souls found yet',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -210,15 +211,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                         ElevatedButton.icon(
                           onPressed: () {
                             setState(() {
-                              _activeFilter = 'ALL';
-                              _isLoadingTab = true;
-                            });
-                            Future.delayed(const Duration(milliseconds: 350), () {
-                              if (mounted) {
-                                setState(() {
-                                  _isLoadingTab = false;
-                                });
-                              }
+                              _activeFilter = 'ALL'; // 🚀 Instant 0ms switch!
                             });
                           },
                           icon: const Icon(Icons.public, size: 18),
@@ -256,11 +249,63 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                     isAllSoulsMode: isAllSoulsMode,
                     isLiked: isLiked,
                     detectedEvent: candidateEvent,
+                    themeColor: themeColor,
                   );
                 },
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  /// Instant Skeleton Placeholder Cards while Stream loads
+  Widget _buildSkeletonList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      itemCount: 4,
+      itemBuilder: (context, index) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              const CircleAvatar(
+                radius: 28,
+                backgroundColor: Color(0xFF0F172A),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 130,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 80,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -290,6 +335,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     required bool isAllSoulsMode,
     required bool isLiked,
     EventHotspot? detectedEvent,
+    required Color themeColor,
   }) {
     final profile = candidate.profile;
     final score = candidate.compatibilityScore.round();
@@ -491,22 +537,22 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                              color: themeColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                                color: themeColor.withValues(alpha: 0.4),
                                 width: 0.8,
-                                ),
                               ),
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.location_on, size: 10, color: Color(0xFF60A5FA)),
+                                Icon(Icons.location_on, size: 10, color: themeColor),
                                 const SizedBox(width: 2),
                                 Text(
                                   _formatCompactDistance(candidate.distanceKm), // 👈 e.g. "120m" or "1km"
-                                  style: const TextStyle(
-                                    color: Color(0xFF60A5FA),
+                                  style: TextStyle(
+                                    color: themeColor,
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -623,7 +669,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     final profile = candidate.profile;
     try {
       final isMatched = await _matchService.likeUser(profile.uid);
-      if (!context.mounted) return;
+      if (!mounted) return;
 
       if (isMatched) {
         // 🎉 Mutual Match Unlocked! Direct Message Phase
@@ -681,14 +727,9 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+      );
     }
   }
 

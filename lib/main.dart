@@ -12,6 +12,7 @@ import 'services/channel_service.dart';
 import 'services/match_service.dart';
 import 'services/radar/location_service.dart';
 import 'views/auth/login_view.dart';
+import 'views/banned_account_view.dart';
 import 'views/chat_list_view.dart';
 import 'views/like_notifications_view.dart';
 import 'views/nearby_users_list_view.dart';
@@ -107,9 +108,18 @@ class _MyAppState extends State<MyApp> {
             return const SplashLoadingView();
           }
 
-          if (authController.currentUser == null) {
+          final currentUser = authController.currentUser;
+          if (currentUser == null) {
             return LoginView(
               controller: authController,
+            );
+          }
+
+          // 🚫 If user account is banned (10+ reports from 3+ reporters), block access & show 3-day countdown screen!
+          if (currentUser.isBanned) {
+            return BannedAccountView(
+              user: currentUser,
+              authController: authController,
             );
           }
 
@@ -136,19 +146,52 @@ class MainNavigationScreen extends StatefulWidget {
   }
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   bool _isPreloadingUserData = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _preloadUserDataInBackground();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _updateOnlineStatus(false);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint("APP LIFECYCLE EVENT: $state");
+    if (state == AppLifecycleState.resumed) {
+      // 🟢 App Opened / Returned to Foreground -> ONLINE
+      _updateOnlineStatus(true);
+    } else if (state == AppLifecycleState.paused ||
+               state == AppLifecycleState.inactive ||
+               state == AppLifecycleState.detached ||
+               state == AppLifecycleState.hidden) {
+      // ⚪ App Closed / Minimized / Background -> OFFLINE
+      _updateOnlineStatus(false);
+    }
+  }
+
+  void _updateOnlineStatus(bool isOnline) {
+    final uid = widget.authController.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      widget.authController.setOnlineStatus(isOnline);
+    }
   }
 
   Future<void> _preloadUserDataInBackground() async {
     final uid = widget.authController.currentUser?.uid;
     if (uid != null && uid.isNotEmpty) {
+      // 🟢 Mark as Online on App launch
+      await widget.authController.setOnlineStatus(true);
+
       // 🚀 Preload user's visited hotspot history into memory cache BEFORE starting Radar
       await RadarController.preloadHotspotHistoryForUser(uid);
     }

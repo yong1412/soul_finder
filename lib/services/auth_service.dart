@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/user_profile.dart';
 
@@ -208,24 +209,23 @@ class AuthService {
 
       await _users
           .doc(firebaseUser.uid)
-          .update({
+          .set({
         'uid': updatedProfile.uid,
         'email': updatedProfile.email,
         'name': updatedProfile.name,
         'age': updatedProfile.age,
         'gender': updatedProfile.gender,
         'bio': updatedProfile.bio,
-        'interests':
-        updatedProfile.interests,
-        'lookingFor':
-        updatedProfile.lookingFor,
-        'discoveryRadius':
-        updatedProfile.discoveryRadius,
-        'profileImageBase64':
-        updatedProfile.profileImageBase64,
-        'updatedAt':
-        FieldValue.serverTimestamp(),
-      });
+        'interests': updatedProfile.interests,
+        'lookingFor': updatedProfile.lookingFor,
+        'discoveryRadius': updatedProfile.discoveryRadius,
+        'profileImageBase64': updatedProfile.profileImageBase64,
+        'isOnline': updatedProfile.isOnline,
+        'hideOnlineStatus': updatedProfile.hideOnlineStatus,
+        'heightCm': updatedProfile.heightCm,
+        'weightKg': updatedProfile.weightKg,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       return updatedProfile;
     } on FirebaseException catch (error) {
@@ -233,6 +233,54 @@ class AuthService {
         error.message ??
             'Unable to update profile.',
       );
+    }
+  }
+
+  Future<UserProfile> setHideOnlineStatus(bool hide) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw const AuthException('You are not signed in.');
+    }
+
+    try {
+      await _users.doc(firebaseUser.uid).set({
+        'hideOnlineStatus': hide,
+      }, SetOptions(merge: true));
+
+      final doc = await _users.doc(firebaseUser.uid).get();
+      return UserProfile.fromJson(doc.data()!);
+    } on FirebaseException catch (error) {
+      throw AuthException(error.message ?? 'Unable to update privacy status.');
+    }
+  }
+
+  Future<UserProfile> setRadarMode(String modeStr) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw const AuthException('You are not signed in.');
+    }
+
+    try {
+      await _users.doc(firebaseUser.uid).set({
+        'radarMode': modeStr,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final doc = await _users.doc(firebaseUser.uid).get();
+      return UserProfile.fromJson(doc.data()!);
+    } on FirebaseException catch (error) {
+      throw AuthException(error.message ?? 'Unable to update radar mode.');
+    }
+  }
+
+  Future<void> updateOnlineStatusDirect(String uid, bool isOnline) async {
+    try {
+      await _users.doc(uid).set({
+        'isOnline': isOnline,
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("Error updating online status direct for $uid: $e");
     }
   }
 

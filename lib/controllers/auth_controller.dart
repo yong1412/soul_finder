@@ -83,6 +83,28 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  Future<void> setOnlineStatus(bool isOnline) async {
+    final uid = _currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    _currentUser = _currentUser?.copyWith(isOnline: isOnline);
+    notifyListeners();
+
+    await _service.updateOnlineStatusDirect(uid, isOnline);
+  }
+
+  Future<bool> setHideOnlineStatus(bool hide) async {
+    return _execute(() async {
+      _currentUser = await _service.setHideOnlineStatus(hide);
+    });
+  }
+
+  Future<bool> setRadarMode(String modeStr) async {
+    return _execute(() async {
+      _currentUser = await _service.setRadarMode(modeStr);
+    });
+  }
+
   Future<bool> changePassword(
       String newPassword,
       ) async {
@@ -94,6 +116,16 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final uid = _currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      // ⚪ Mark user as OFFLINE in Firestore BEFORE signing out!
+      try {
+        await _service.updateOnlineStatusDirect(uid, false);
+      } catch (e) {
+        debugPrint("Notice updating offline status on logout: $e");
+      }
+    }
+
     _isBusy = true;
     _errorMessage = null;
     notifyListeners();
@@ -120,6 +152,10 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+
+    try {
+      await _service.updateOnlineStatusDirect(user.uid, false);
+    } catch (_) {}
 
     return _execute(() async {
       await _service.deleteUser(

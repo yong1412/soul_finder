@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/auth_controller.dart';
 import '../models/interest_data.dart';
+import '../models/user_profile.dart';
 import '../services/match_service.dart';
 import '../services/profile_stats_service.dart';
 import 'chat_list_view.dart';
@@ -495,55 +496,88 @@ class UserDashboardView extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem({
+  Widget _buildStatCard({
     required Stream<int> stream,
     required String label,
+    required IconData icon,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return StreamBuilder<int>(
       stream: stream,
       initialData: 0,
       builder: (context, snapshot) {
-        return Semantics(
-          button: true,
-          label: 'Open $label list',
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    snapshot.hasError ? '—' : '${snapshot.data ?? 0}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+        final count = snapshot.hasError ? 0 : (snapshot.data ?? 0);
+
+        return Expanded(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(20),
+              child: Ink(
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.35),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white54,
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        color: color,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$count',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white70,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.chevron_right,
-                        size: 15,
-                        color: Colors.white38,
-                      ),
-                    ],
-                  ),
-                ],
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 14,
+                          color: Colors.white38,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -653,65 +687,91 @@ class UserDashboardView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 30),
+          const SizedBox(height: 12),
 
+          // 🟢 Public Status Pill Badge
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              vertical: 20,
-              horizontal: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: theme.surface,
-              borderRadius:
-              BorderRadius.circular(20),
+              color: user.isPubliclyOnline
+                  ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                  : (user.hideOnlineStatus
+                      ? const Color(0xFF818CF8).withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.08)),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: user.isPubliclyOnline
+                    ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                    : (user.hideOnlineStatus ? const Color(0xFF818CF8).withValues(alpha: 0.4) : Colors.white24),
+                width: 1,
+              ),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: _buildStatItem(
-                    stream: _profileStatsService.watchMatchCount(),
-                    label: 'Matches',
-                    onTap: () => _openMatches(context),
-                  ),
+                Icon(
+                  user.hideOnlineStatus
+                      ? Icons.visibility_off_outlined
+                      : (user.isOnline ? Icons.circle : Icons.circle_outlined),
+                  size: 12,
+                  color: user.isPubliclyOnline
+                      ? const Color(0xFF10B981)
+                      : (user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white54),
                 ),
-
-                Container(
-                  width: 1,
-                  height: 45,
-                  color: Colors.white.withValues(
-                    alpha: 0.10,
-                  ),
-                ),
-
-                Expanded(
-                  child: _buildStatItem(
-                    stream: _matchService
-                        .watchCandidates()
-                        .map((candidates) => candidates.length),
-                    label: 'Near You',
-                    onTap: () => _openNearYou(context),
-                  ),
-                ),
-
-                Container(
-                  width: 1,
-                  height: 45,
-                  color: Colors.white.withValues(
-                    alpha: 0.10,
-                  ),
-                ),
-
-                Expanded(
-                  child: _buildStatItem(
-                    stream: _profileStatsService.watchProfileViewCount(),
-                    label: 'Views',
-                    onTap: () => _openProfileViews(context),
+                const SizedBox(width: 8),
+                Text(
+                  user.hideOnlineStatus
+                      ? 'Incognito Stealth Active (Hidden)'
+                      : (user.isOnline ? 'Online • Visible on Radar' : 'Offline'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: user.isPubliclyOnline
+                        ? const Color(0xFF10B981)
+                        : (user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white54),
                   ),
                 ),
               ],
             ),
           ),
+
+          const SizedBox(height: 24),
+
+          // 3 Vibrant High-End Stats Cards: Matches, Near You, Views
+          Row(
+            children: [
+              _buildStatCard(
+                stream: _profileStatsService.watchMatchCount(),
+                label: 'Matches',
+                icon: Icons.favorite_rounded,
+                color: const Color(0xFFF43F5E),
+                onTap: () => _openMatches(context),
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                stream: _matchService
+                    .watchCandidates()
+                    .map((candidates) => candidates.length),
+                label: 'Near You',
+                icon: Icons.radar_rounded,
+                color: const Color(0xFF38BDF8),
+                onTap: () => _openNearYou(context),
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                stream: _profileStatsService.watchProfileViewCount(),
+                label: 'Views',
+                icon: Icons.remove_red_eye_rounded,
+                color: const Color(0xFF10B981),
+                onTap: () => _openProfileViews(context),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Dedicated "About Me" Card
+          _buildAboutMeCard(user, theme, context),
 
           const SizedBox(height: 20),
 
@@ -876,6 +936,51 @@ class UserDashboardView extends StatelessWidget {
                   height: 1,
                 ),
 
+                // 🕵️‍♂️ Incognito Mode Switch
+                SwitchListTile(
+                  secondary: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: user.hideOnlineStatus
+                          ? const Color(0xFF818CF8).withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.06),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.visibility_off_outlined,
+                      color: user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white70,
+                    ),
+                  ),
+                  title: Text(
+                    'Incognito Mode',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white,
+                    ),
+                  ),
+                  subtitle: Text(
+                    user.hideOnlineStatus
+                        ? 'Stealth Active • Hidden from Radar, Chat & Discover'
+                        : 'Hide online status & disappear from Radar & Chat list',
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  value: user.hideOnlineStatus,
+                  activeThumbColor: const Color(0xFF818CF8),
+                  activeTrackColor: const Color(0xFF818CF8).withValues(alpha: 0.3),
+                  inactiveThumbColor: Colors.white38,
+                  inactiveTrackColor: Colors.white10,
+                  onChanged: (hide) async {
+                    await controller.setHideOnlineStatus(hide);
+                  },
+                ),
+
+                Divider(
+                  color: Colors.white.withValues(
+                    alpha: 0.05,
+                  ),
+                  height: 1,
+                ),
+
                 // Account Settings
                 ListTile(
                   leading: Container(
@@ -912,8 +1017,54 @@ class UserDashboardView extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          const SizedBox(height: 20),
+  Widget _buildAboutMeCard(UserProfile user, ColorScheme theme, BuildContext context) {
+    final bioText = user.bio.trim().isEmpty
+        ? 'Passionate about exploring new places, meeting like-minded souls, and enjoying genuine conversations.'
+        : user.bio.trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: theme.primary.withValues(alpha: 0.25),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'About Me',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            bioText,
+            style: const TextStyle(
+              fontSize: 15,
+              height: 1.5,
+              color: Colors.white,
+            ),
+          ),
         ],
       ),
     );

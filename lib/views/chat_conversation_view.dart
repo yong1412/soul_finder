@@ -9,6 +9,7 @@ import '../models/chat_message.dart';
 import '../services/chat_service.dart';
 import '../services/cloudinary_service.dart';
 import '../services/match_service.dart';
+import '../services/report_service.dart';
 import 'full_screen_image_view.dart';
 import 'public_user_profile_view.dart';
 import 'video_player_view.dart';
@@ -436,48 +437,120 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        // 🎯 Tapping the Avatar/Name in AppBar opens the target user's full Profile
-        title: InkWell(
-          onTap: _openTargetUserProfile,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 17,
-                  backgroundColor: const Color(0xFF3B82F6),
-                  backgroundImage: _targetProfileImage,
-                  child: _targetProfileImage == null
-                      ? Text(
-                          _firstCharacter(widget.targetUserName),
+        // 🎯 Tapping the Avatar/Name in AppBar opens target user profile + Displays Realtime Online/Offline Status
+        title: StreamBuilder<MatchPairData?>(
+          stream: _matchService.watchPair(widget.targetUserUid),
+          builder: (context, snapshot) {
+            final targetProfile = snapshot.data?.otherUser;
+            final isOnline = targetProfile?.isPubliclyOnline ?? false;
+
+            return InkWell(
+              onTap: _openTargetUserProfile,
+              borderRadius: BorderRadius.circular(20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 17,
+                          backgroundColor: const Color(0xFF3B82F6),
+                          backgroundImage: _targetProfileImage,
+                          child: _targetProfileImage == null
+                              ? Text(
+                                  _firstCharacter(widget.targetUserName),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isOnline ? const Color(0xFF10B981) : Colors.white38,
+                              border: Border.all(color: const Color(0xFF0F172A), width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.targetUserName,
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
-                        )
-                      : null,
+                        ),
+                        Text(
+                          isOnline ? '🟢 Online' : '⚪ Offline',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isOnline ? const Color(0xFF10B981) : Colors.white38,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  widget.targetUserName,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            tooltip: 'View User Profile',
-            onPressed: _openTargetUserProfile,
-            icon: const Icon(Icons.person_outline),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.white70),
+            color: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            onSelected: (val) {
+              if (val == 'profile') {
+                _openTargetUserProfile();
+              } else if (val == 'report') {
+                showReportUserDialog(
+                  context: context,
+                  targetUid: widget.targetUserUid,
+                  targetName: widget.targetUserName,
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline, color: Colors.white70, size: 20),
+                    SizedBox(width: 10),
+                    Text('View Profile', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, color: Colors.redAccent, size: 20),
+                    SizedBox(width: 10),
+                    Text('Report User', style: TextStyle(color: Colors.redAccent)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1035,7 +1108,6 @@ class _ChatConversationViewState extends State<ChatConversationView> {
       return _buildTextContent(message, message.senderUid == _chatService.currentUserUid);
     }
 
-    final isMine = message.senderUid == _chatService.currentUserUid;
     final isReceiver = message.receiverUid == _chatService.currentUserUid;
     final isAccepted = message.status == MeetingProposalStatus.accepted;
     final isDeclined = message.status == MeetingProposalStatus.declined;

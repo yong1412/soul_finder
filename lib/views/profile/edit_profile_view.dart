@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../controllers/auth_controller.dart';
@@ -335,6 +336,16 @@ class _EditProfileViewState extends State<EditProfileView> {
                             label: 'Height (cm)',
                             icon: Icons.height,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            validator: (value) {
+                              final val = value?.trim();
+                              if (val == null || val.isEmpty) return null;
+                              final numVal = double.tryParse(val);
+                              if (numVal == null || numVal < 50 || numVal > 250) {
+                                return 'Enter 50-250 cm';
+                              }
+                              return null;
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -344,6 +355,16 @@ class _EditProfileViewState extends State<EditProfileView> {
                             label: 'Weight (kg)',
                             icon: Icons.monitor_weight_outlined,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            validator: (value) {
+                              final val = value?.trim();
+                              if (val == null || val.isEmpty) return null;
+                              final numVal = double.tryParse(val);
+                              if (numVal == null || numVal < 20 || numVal > 300) {
+                                return 'Enter 20-300 kg';
+                              }
+                              return null;
+                            },
                           ),
                         ),
                       ],
@@ -359,11 +380,38 @@ class _EditProfileViewState extends State<EditProfileView> {
                     _buildTextField(
                       controller: _bioController,
                       label: 'Bio',
-                      icon: Icons.description_outlined,
+                      icon: null,
                       maxLines: 4,
                       maxLength: 250,
                       hintText:
                       'Tell others a bit about yourself...',
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Need inspiration? Tap a template to apply:',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        '✈️ Coffee lover & weekend explorer',
+                        '🚀 Tech enthusiast & music addict',
+                        '🏋️ Fitness lover & foodie at heart',
+                        '🎨 Creative soul exploring new places',
+                      ].map((template) {
+                        return ActionChip(
+                          avatar: const Icon(Icons.add, size: 14, color: Color(0xFF38BDF8)),
+                          label: Text(template, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                          backgroundColor: const Color(0xFF0F172A),
+                          onPressed: () {
+                            setState(() {
+                              _bioController.text = template;
+                            });
+                          },
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
@@ -549,8 +597,9 @@ class _EditProfileViewState extends State<EditProfileView> {
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
-    required IconData icon,
+    IconData? icon,
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
     int maxLines = 1,
     int? maxLength,
     String? hintText,
@@ -559,13 +608,14 @@ class _EditProfileViewState extends State<EditProfileView> {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       maxLines: maxLines,
       maxLength: maxLength,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        prefixIcon: Icon(icon),
+        prefixIcon: icon != null ? Icon(icon) : null,
         filled: true,
         fillColor: const Color(0xFF0F172A),
         border: OutlineInputBorder(

@@ -10,7 +10,11 @@ import '../../services/radar/location_service.dart';
 import '../../services/radar/transport_service.dart';
 
 class RadarController extends ChangeNotifier {
-  RadarController({double? initialRadius}) : radarRadius = initialRadius ?? 200.0;
+  RadarController({
+    double? initialRadius,
+    String? initialMode,
+  })  : radarRadius = initialRadius ?? 200.0,
+        scanMode = {initialMode == 'couple' ? 'couple' : 'friends'};
 
   final LocationService _locationService = LocationService();
   final TransportService _transportService = TransportService();
@@ -150,15 +154,41 @@ class RadarController extends ChangeNotifier {
 
   void setScanMode(Set<String> mode) {
     scanMode = mode;
+    final modeStr = mode.contains('couple') ? 'couple' : 'friends';
+    _syncRadarModeToFirestore(modeStr);
+
     if (currentPosition != null) {
       performRadarScan(currentPosition!);
     }
     notifyListeners();
   }
 
+  Future<void> _syncRadarModeToFirestore(String modeStr) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    try {
+      await _firestore.collection('users').doc(uid).set({
+        'radarMode': modeStr,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      debugPrint("RADAR MODE SYNCED TO FIRESTORE for $uid: $modeStr");
+    } catch (e) {
+      debugPrint("Notice syncing radar mode: $e");
+    }
+  }
+
+  /// Update radar radius locally during dragging (0ms, no network scan yet)
+  void setRadarRadiusLocal(double radius) {
+    if ((radarRadius - radius).abs() < 0.1) return;
+    radarRadius = radius;
+    notifyListeners();
+  }
+
+  /// Commit new radar radius and perform network radar scan
   void setRadarRadius(double radius) {
     radarRadius = radius;
-    if (currentPosition != null) {
+    if (currentPosition != null && !isScanning) {
       performRadarScan(currentPosition!);
     }
     notifyListeners();

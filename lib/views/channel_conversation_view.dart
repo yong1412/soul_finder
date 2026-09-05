@@ -100,7 +100,7 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
       await _channelService.sendMessage(
         channelName: widget.channelId,
         senderName: user.name,
-        senderProfileImage: user.profileImageBase64 ?? '',
+        senderProfileImage: user.profileImageBase64,
         text: text,
         type: type,
         mediaUrl: mediaUrl,
@@ -319,7 +319,7 @@ class _ChannelConversationViewState extends State<ChannelConversationView> {
   }
 
   void _showMessageOptions(ChannelMessage message) {
-    final createdAt = message.createdAt ?? DateTime.now();
+    final createdAt = message.createdAt;
     final diffInSeconds = DateTime.now().difference(createdAt).inSeconds;
     final bool canDelete = diffInSeconds <= 180; // 3 minutes limit
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/match_service.dart';
 import '../services/profile_stats_service.dart';
+import '../services/report_service.dart';
 import 'chat_conversation_view.dart';
 import 'meet_soul_view.dart';
 
@@ -175,6 +176,19 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
       appBar: AppBar(
         title: const Text('Soul Profile'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Report User',
+            icon: const Icon(Icons.flag_outlined, color: Colors.redAccent),
+            onPressed: () {
+              showReportUserDialog(
+                context: context,
+                targetUid: profile.uid,
+                targetName: profile.name,
+              );
+            },
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 120),
@@ -212,24 +226,110 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            displayName,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                displayName,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: profile.isOnline ? const Color(0xFF10B981) : Colors.white38,
+                  boxShadow: profile.isOnline
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.6),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : null,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 7),
-          Text(
-            profile.bio.trim().isEmpty
-                ? 'Looking for meaningful connections'
-                : profile.bio.trim(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF60A5FA),
-              fontSize: 16,
+          if (profile.isSuspended) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Account Suspended (Reported 5+ Times)',
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          // Dedicated "About Me" Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'About Me',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  profile.bio.trim().isEmpty
+                      ? 'Passionate about exploring new places, meeting like-minded souls, and enjoying genuine conversations.'
+                      : profile.bio.trim(),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),

@@ -39,6 +39,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
   Set<String> _likedUserIds = {};
   final Set<String> _skippedUserIds = {};
   bool _isShowingDialog = false;
+  bool _isUpdatingMode = false;
 
   @override
   void initState() {
@@ -48,8 +49,12 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
     final initialRadius = user != null 
         ? (user.discoveryRadius * 1000).clamp(50.0, 200.0) 
         : 200.0;
+    final initialMode = user?.radarMode ?? 'friends';
     
-    _controller = RadarController(initialRadius: initialRadius);
+    _controller = RadarController(
+      initialRadius: initialRadius,
+      initialMode: initialMode,
+    );
     _controller.addListener(_onRadarControllerChanged);
     _controller.startLocationTracking();
 
@@ -83,6 +88,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
 
   void _onRadarControllerChanged() {
     if (!mounted) return;
+    _subscribeToCandidates(); // 🎯 Re-subscribe to match candidates whenever scanMode changes!
     _checkAndShowHighMatchCandidate();
   }
 
@@ -95,11 +101,16 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
   }
 
   void _onAuthChanged() {
+    if (!mounted || _isUpdatingMode) return;
     final user = widget.authController.currentUser;
     if (user != null) {
-      final newRadiusMeters = user.discoveryRadius * 1000;
-      if (_controller.radarRadius != newRadiusMeters) {
-        _controller.setRadarRadius(newRadiusMeters);
+      final newRadiusMeters = (user.discoveryRadius * 1000).clamp(50.0, 200.0);
+      if ((_controller.radarRadius - newRadiusMeters).abs() > 0.1) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && (_controller.radarRadius - newRadiusMeters).abs() > 0.1) {
+            _controller.setRadarRadius(newRadiusMeters);
+          }
+        });
       }
     }
   }
@@ -474,9 +485,10 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
 
   Widget _buildRadiusPillButton(ColorScheme theme) {
     final currentRadiusInt = _controller.radarRadius.round().clamp(50, 200);
+    final bool isLocked = _controller.isScanning || widget.authController.isBusy;
 
     return InkWell(
-      onTap: () {
+      onTap: isLocked ? null : () {
         setState(() {
           _isRadiusExpanded = !_isRadiusExpanded;
         });
@@ -510,23 +522,31 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
             Icon(
               Icons.tune,
               size: 18,
-              color: theme.primary,
+              color: isLocked ? Colors.white38 : theme.primary,
             ),
             const SizedBox(width: 6),
             Text(
               "${currentRadiusInt}m",
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isLocked ? Colors.white54 : Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
             ),
             const SizedBox(width: 4),
-            Icon(
-              _isRadiusExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-              size: 18,
-              color: Colors.white54,
-            ),
+            if (isLocked) ...[
+              const SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.white54),
+              ),
+            ] else ...[
+              Icon(
+                _isRadiusExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                size: 18,
+                color: Colors.white54,
+              ),
+            ],
           ],
         ),
       ),
@@ -534,6 +554,8 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
   }
 
   Widget _buildTopControlRow(ColorScheme theme) {
+    final bool isUpdating = widget.authController.isBusy;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Column(
@@ -572,18 +594,29 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        "Discovery Radius",
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      Row(
+                        children: [
+                          const Text(
+                            "Discovery Radius",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (isUpdating) ...[
+                            const SizedBox(width: 8),
+                            const Text(
+                              "(Saving...)",
+                              style: TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ],
                       ),
                       Text(
                         "${_controller.radarRadius.round()}m",
                         style: TextStyle(
-                          color: theme.primary,
+                          color: isUpdating ? Colors.white38 : theme.primary,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -594,9 +627,9 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                   SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       trackHeight: 4,
-                      activeTrackColor: theme.primary,
+                      activeTrackColor: isUpdating ? Colors.white24 : theme.primary,
                       inactiveTrackColor: Colors.white10,
-                      thumbColor: theme.primary,
+                      thumbColor: isUpdating ? Colors.white38 : theme.primary,
                       thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                       overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                     ),
@@ -606,11 +639,15 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
                       max: 200.0,
                       divisions: 15,
                       label: "${_controller.radarRadius.round()}m",
-                      onChanged: (double val) {
+                      // 🔒 Lock interaction ONLY while saving/updating in background!
+                      onChanged: isUpdating ? null : (double val) {
+                        _controller.setRadarRadiusLocal(val);
+                      },
+                      onChangeEnd: isUpdating ? null : (double val) async {
                         _controller.setRadarRadius(val);
                         final user = widget.authController.currentUser;
                         if (user != null) {
-                          widget.authController.updateProfile(
+                          await widget.authController.updateProfile(
                             user.copyWith(discoveryRadius: val / 1000.0),
                           );
                         }
@@ -656,10 +693,63 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
           );
 
     return InkWell(
-      onTap: () {
+      onTap: _isUpdatingMode ? null : () async {
+        setState(() {
+          _isUpdatingMode = true;
+        });
+
         final nextMode = isCouple ? 'friends' : 'couple';
-        _controller.setScanMode({nextMode});
-        _subscribeToCandidates();
+        final nextModeLabel = nextMode == 'couple' ? 'Find Couple Mode ❤️' : 'Find Friends Mode 💙';
+        final nextColor = nextMode == 'couple' ? const Color(0xFFF43F5E) : const Color(0xFF3B82F6);
+
+        // 🎯 Show Non-dismissible Loading Dialog to block interaction while mode updates!
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => Center(
+            child: Card(
+              color: const Color(0xFF1E293B),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: nextColor, strokeWidth: 3),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Updating Radar Mode...',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Switching to $nextModeLabel',
+                      style: TextStyle(fontSize: 12, color: nextColor, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        try {
+          _controller.setScanMode({nextMode});
+          _subscribeToCandidates();
+          await widget.authController.setRadarMode(nextMode);
+        } catch (e) {
+          debugPrint("Notice updating radar mode: $e");
+        } finally {
+          _isUpdatingMode = false;
+          if (mounted) {
+            Navigator.of(context).pop(); // 🔓 Dismiss loading dialog once mode update is complete
+            setState(() {});
+          }
+        }
       },
       borderRadius: BorderRadius.circular(25),
       child: AnimatedContainer(

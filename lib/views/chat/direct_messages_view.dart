@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../services/chat_service.dart';
+import '../../services/match_service.dart';
 import '../chat_conversation_view.dart';
 
 class DirectMessagesView extends StatefulWidget {
@@ -12,6 +13,7 @@ class DirectMessagesView extends StatefulWidget {
 
 class _DirectMessagesViewState extends State<DirectMessagesView> {
   final ChatService _chatService = ChatService();
+  final MatchService _matchService = MatchService();
   late final Stream<List<ChatPreview>> _directMessagesStream;
 
   @override
@@ -57,19 +59,43 @@ class _DirectMessagesViewState extends State<DirectMessagesView> {
 
             return ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              leading: CircleAvatar(
-                radius: 26,
-                backgroundColor: const Color(0xFF3B82F6),
-                backgroundImage: profileImage,
-                child: profileImage == null
-                    ? Text(
-                        _firstCharacter(chat.otherUserName),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+              leading: StreamBuilder<MatchPairData?>(
+                stream: _matchService.watchPair(chat.otherUserUid),
+                builder: (context, pairSnapshot) {
+                  final isOnline = pairSnapshot.data?.otherUser.isPubliclyOnline ?? false;
+
+                  return Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 26,
+                        backgroundColor: const Color(0xFF3B82F6),
+                        backgroundImage: profileImage,
+                        child: profileImage == null
+                            ? Text(
+                                _firstCharacter(chat.otherUserName),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isOnline ? const Color(0xFF10B981) : Colors.white38,
+                            border: Border.all(color: const Color(0xFF0F172A), width: 2),
+                          ),
                         ),
-                      )
-                    : null,
+                      ),
+                    ],
+                  );
+                },
               ),
               title: Text(
                 chat.otherUserName,
