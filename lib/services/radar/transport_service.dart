@@ -14,8 +14,7 @@ class TransportService {
         "transit_station", 
         "light_rail_station", 
         "subway_station", 
-        "train_station",
-        "bus_station"
+        "train_station"
       ],
       "maxResultCount": 10,
       "locationRestriction": {
@@ -46,11 +45,9 @@ class TransportService {
         
         return places.map((place) {
           final types = List<String>.from(place['types'] ?? []);
-          StationType type = StationType.bus;
+          StationType type = StationType.lrt; // Default to LRT
           
-          if (types.contains('subway_station') || types.contains('light_rail_station')) {
-            type = StationType.lrt;
-          } else if (types.contains('train_station')) {
+          if (types.contains('train_station')) {
             type = StationType.mrt;
           }
 

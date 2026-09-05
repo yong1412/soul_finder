@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:soul_finder/views/radar/radar_view.dart';
 
 import 'firebase_options.dart';
 
 import 'controllers/auth_controller.dart';
+import 'controllers/radar/radar_controller.dart';
 import 'services/auth_service.dart';
+import 'services/channel_service.dart';
+import 'services/match_service.dart';
+import 'services/radar/location_service.dart';
 import 'views/auth/login_view.dart';
+import 'views/banned_account_view.dart';
 import 'views/chat_list_view.dart';
+import 'views/like_notifications_view.dart';
 import 'views/nearby_users_list_view.dart';
+import 'views/splash_loading_view.dart';
 import 'views/user_dashboard_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -78,7 +87,7 @@ class _MyAppState extends State<MyApp> {
             ),
           ),
           iconTheme: WidgetStateProperty.resolveWith(
-                (states) {
+            (states) {
               if (states.contains(WidgetState.selected)) {
                 return const IconThemeData(
                   color: Color(0xFF3B82F6),
@@ -96,16 +105,21 @@ class _MyAppState extends State<MyApp> {
         listenable: authController,
         builder: (context, child) {
           if (authController.isInitializing) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
+            return const SplashLoadingView();
+          }
+
+          final currentUser = authController.currentUser;
+          if (currentUser == null) {
+            return LoginView(
+              controller: authController,
             );
           }
 
-          if (authController.currentUser == null) {
-            return LoginView(
-              controller: authController,
+          // 🚫 If user account is banned (10+ reports from 3+ reporters), block access & show 3-day countdown screen!
+          if (currentUser.isBanned) {
+            return BannedAccountView(
+              user: currentUser,
+              authController: authController,
             );
           }
 
@@ -132,14 +146,82 @@ class MainNavigationScreen extends StatefulWidget {
   }
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  bool _isPreloadingUserData = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _preloadUserDataInBackground();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _updateOnlineStatus(false);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    debugPrint("APP LIFECYCLE EVENT: $state");
+    if (state == AppLifecycleState.resumed) {
+      // 🟢 App Opened / Returned to Foreground -> ONLINE
+      _updateOnlineStatus(true);
+    } else if (state == AppLifecycleState.paused ||
+               state == AppLifecycleState.inactive ||
+               state == AppLifecycleState.detached ||
+               state == AppLifecycleState.hidden) {
+      // ⚪ App Closed / Minimized / Background -> OFFLINE
+      _updateOnlineStatus(false);
+    }
+  }
+
+  void _updateOnlineStatus(bool isOnline) {
+    final uid = widget.authController.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      widget.authController.setOnlineStatus(isOnline);
+    }
+  }
+
+  Future<void> _preloadUserDataInBackground() async {
+    final uid = widget.authController.currentUser?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      // 🟢 Mark as Online on App launch
+      await widget.authController.setOnlineStatus(true);
+
+      // 🚀 Preload user's visited hotspot history into memory cache BEFORE starting Radar
+      await RadarController.preloadHotspotHistoryForUser(uid);
+    }
+
+    ChannelService().initializeInterestChannels().catchError((e) {
+      debugPrint("Channel initialization skipped: $e");
+    });
+
+    LocationService().getCurrentLocation().catchError((e) {
+      debugPrint("Location sync skipped: $e");
+      return null;
+    });
+
+    if (mounted) {
+      setState(() {
+        _isPreloadingUserData = false;
+      });
+    }
+  }
 
   List<Widget> get _screens {
     return [
-      const RadarView(),
+      RadarView(
+        authController: widget.authController,
+        isRadarTabActive: _selectedIndex == 0,
+      ),
       const NearbyUsersListView(),
-      const ChatListView(),
+      ChatListView(
+        authController: widget.authController,
+      ),
       UserDashboardView(
         controller: widget.authController,
       ),
@@ -161,6 +243,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isPreloadingUserData) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF38BDF8), strokeWidth: 3),
+              const SizedBox(height: 20),
+              const Text(
+                'Loading Soul Finder...',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Pre-loading user data & hotspot history for ${widget.authController.currentUser?.name ?? "user"}...',
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -171,6 +281,68 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          StreamBuilder<int>(
+            stream: MatchService().watchUnreadNotificationCount(),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      unreadCount > 0
+                          ? Icons.notifications_active
+                          : Icons.notifications_outlined,
+                      color: unreadCount > 0 ? const Color(0xFFF43F5E) : null,
+                    ),
+                    tooltip: 'Like Notifications',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => Scaffold(
+                            appBar: AppBar(
+                              title: const Text('Notifications'),
+                              centerTitle: true,
+                            ),
+                            body: LikeNotificationsView(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF43F5E),
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: IndexedStack(
         index: _selectedIndex,

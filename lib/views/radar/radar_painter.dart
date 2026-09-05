@@ -18,19 +18,23 @@ class RadarPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2;
 
-    final paint = Paint()
-      ..color = color.withOpacity(0.1)
+    final ringPaint = Paint()
+      ..color = color.withValues(alpha: 0.25)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
+      ..strokeWidth = 1.2;
 
     // Draw concentric circles
-    canvas.drawCircle(center, radius, paint);
-    canvas.drawCircle(center, radius * 0.7, paint);
-    canvas.drawCircle(center, radius * 0.4, paint);
+    canvas.drawCircle(center, radius, ringPaint);
+    canvas.drawCircle(center, radius * 0.7, ringPaint);
+    canvas.drawCircle(center, radius * 0.4, ringPaint);
 
     // Draw axis lines
-    canvas.drawLine(Offset(center.dx - radius, center.dy), Offset(center.dx + radius, center.dy), paint);
-    canvas.drawLine(Offset(center.dx, center.dy - radius), Offset(center.dx, center.dy + radius), paint);
+    final axisPaint = Paint()
+      ..color = color.withValues(alpha: 0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawLine(Offset(center.dx - radius, center.dy), Offset(center.dx + radius, center.dy), axisPaint);
+    canvas.drawLine(Offset(center.dx, center.dy - radius), Offset(center.dx, center.dy + radius), axisPaint);
 
     // Draw rotating sweep
     final sweepPaint = Paint()
@@ -39,18 +43,18 @@ class RadarPainter extends CustomPainter {
         startAngle: 0.0,
         endAngle: math.pi * 2,
         colors: [
-          color.withOpacity(0.0),
-          color.withOpacity(0.5),
+          color.withValues(alpha: 0.0),
+          color.withValues(alpha: 0.55),
         ],
-        stops: const [0.75, 1.0],
+        stops: const [0.70, 1.0],
         transform: GradientRotation(progress * 2 * math.pi - math.pi / 2),
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
     canvas.drawCircle(center, radius, sweepPaint);
     
-    // Draw the "front" line of the sweep
+    // Draw the front line of the sweep
     final linePaint = Paint()
-      ..color = color.withOpacity(0.8)
+      ..color = color.withValues(alpha: 0.85)
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
     
@@ -61,7 +65,7 @@ class RadarPainter extends CustomPainter {
       linePaint,
     );
 
-    // Draw dots
+    // Draw dots (pushed out towards outer radar rings & clear glowing effect)
     for (var dot in dots) {
       final dotAngle = dot.angle;
       double currentSweepAngle = (progress * 2 * math.pi) % (2 * math.pi);
@@ -70,24 +74,27 @@ class RadarPainter extends CustomPainter {
       double angleDiff = (currentSweepAngle - normalizedDotAngle);
       if (angleDiff < 0) angleDiff += 2 * math.pi;
       
-      if (angleDiff < math.pi / 2) {
-        final opacity = 1.0 - (angleDiff / (math.pi / 2));
-        final dotPaint = Paint()
-          ..color = color.withOpacity(opacity)
-          ..style = PaintingStyle.fill;
-        
-        final dotOffset = Offset(
-          center.dx + radius * dot.distance * math.cos(dotAngle),
-          center.dy + radius * dot.distance * math.sin(dotAngle),
-        );
-        
-        canvas.drawCircle(dotOffset, dot.size, dotPaint);
-        canvas.drawCircle(
-          dotOffset, 
-          dot.size * 2, 
-          Paint()..color = color.withOpacity(opacity * 0.3)..style = PaintingStyle.fill
-        );
-      }
+      // Gentle persistent glow when sweep passes over
+      final opacity = math.max(0.30, (1.0 - (angleDiff / (math.pi * 1.2))).clamp(0.0, 1.0));
+
+      final dotOffset = Offset(
+        center.dx + radius * dot.distance * math.cos(dotAngle),
+        center.dy + radius * dot.distance * math.sin(dotAngle),
+      );
+
+      // Core glowing blip
+      canvas.drawCircle(
+        dotOffset,
+        dot.size,
+        Paint()..color = color.withValues(alpha: opacity)..style = PaintingStyle.fill,
+      );
+
+      // Outer aura halo
+      canvas.drawCircle(
+        dotOffset,
+        dot.size * 2.2,
+        Paint()..color = color.withValues(alpha: opacity * 0.35)..style = PaintingStyle.fill,
+      );
     }
   }
 

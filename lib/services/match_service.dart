@@ -2,8 +2,10 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../models/event_hotspot.dart';
 import '../models/user_profile.dart';
 
 class MatchCandidate {
@@ -136,8 +138,14 @@ class MatchService {
     return ids.join('_');
   }
 
-  Stream<List<MatchCandidate>> watchCandidates() {
-    final currentUid = _requireCurrentUid();
+  Stream<List<MatchCandidate>> watchCandidates({
+    bool filterByRadius = true,
+    String? scanMode,
+  }) {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value([]);
+    }
 
     return _users.snapshots().map((snapshot) {
       final profiles = snapshot.docs
@@ -157,15 +165,40 @@ class MatchService {
         return <MatchCandidate>[];
       }
 
+      final effectiveScanMode = (scanMode != null && scanMode.isNotEmpty)
+          ? scanMode
+          : currentProfile.radarMode;
+
       final candidates = <MatchCandidate>[];
       for (final other in profiles) {
         if (other.uid == currentUid) {
           continue;
         }
 
+        // 🎯 PUBLIC ONLINE FILTER: Only show users who are publicly ONLINE!
+        if (!other.isPubliclyOnline) {
+          continue;
+        }
+
+        // 🎯 RADAR MODE INTENT MATCHING ('friends' vs 'couple')
+        if (effectiveScanMode.isNotEmpty) {
+          final otherRadarMode = other.radarMode.toLowerCase().trim();
+          if (effectiveScanMode == 'couple') {
+            final matchesCouple = otherRadarMode == 'couple' || otherRadarMode.isEmpty;
+            if (!matchesCouple) continue;
+          } else if (effectiveScanMode == 'friends') {
+            final matchesFriends = otherRadarMode == 'friends' || otherRadarMode.isEmpty;
+            if (!matchesFriends) continue;
+          }
+        }
+
+        // Radar discovery radius is 50m - 200m (0.05 km - 0.2 km)
+        final effectiveRadiusKm = currentProfile.discoveryRadius.clamp(0.05, 0.2);
+
         final distance = _distanceBetween(currentProfile, other);
-        if (distance != null &&
-            distance > currentProfile.discoveryRadius) {
+
+        // Filter out users who do not have valid location OR are outside the radar range (50m - 200m)
+        if (filterByRadius && (distance == null || distance > effectiveRadiusKm)) {
           continue;
         }
 
@@ -182,7 +215,7 @@ class MatchService {
             compatibilityScore: _compatibilityScore(
               currentProfile,
               other,
-              distance,
+              distance ?? 1.0,
               commonInterests.length,
             ),
           ),
@@ -203,16 +236,107 @@ class MatchService {
     });
   }
 
+  /// Watch candidates/souls currently in the location range of a specific Event Hotspot
+  Stream<List<MatchCandidate>> watchEventCandidates(EventHotspot event) {
+    return watchCandidates(filterByRadius: false).map((candidates) {
+      final eventProfile = UserProfile(
+        uid: 'event_anchor',
+        email: '',
+        name: event.name,
+        age: 0,
+        gender: '',
+        bio: '',
+        interests: const [],
+        lookingFor: '',
+        discoveryRadius: 0.2,
+        profileImageBase64: '',
+        latitude: event.latitude,
+        longitude: event.longitude,
+      );
+
+      final eventSouls = <MatchCandidate>[];
+      for (final candidate in candidates) {
+        if (!candidate.profile.hasLocation) continue;
+
+        final distanceKm = _distanceBetween(eventProfile, candidate.profile);
+        if (distanceKm == null) continue;
+
+        final distanceMeters = distanceKm * 1000;
+        final maxRangeMeters = max(event.radiusMeters * 5, 2000.0);
+
+        if (distanceMeters <= maxRangeMeters) {
+          eventSouls.add(
+            MatchCandidate(
+              profile: candidate.profile,
+              distanceKm: distanceKm,
+              commonInterests: candidate.commonInterests,
+              compatibilityScore: candidate.compatibilityScore,
+            ),
+          );
+        }
+      }
+
+      eventSouls.sort((a, b) => (a.distanceKm ?? 0).compareTo(b.distanceKm ?? 0));
+      return eventSouls;
+    });
+  }
+
   Stream<bool> watchLikeStatus(String targetUid) {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value(false);
+    }
     return _likes
         .doc('${currentUid}_$targetUid')
         .snapshots()
-        .map((snapshot) => snapshot.exists);
+        .map((snapshot) => snapshot.exists)
+        .handleError((e) => false);
+  }
+
+  Stream<Set<String>> watchLikedUserIds() {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value({});
+    }
+    return _likes
+        .where('fromUid', isEqualTo: currentUid)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => doc.data()['toUid'] as String? ?? '')
+          .where((uid) => uid.isNotEmpty)
+          .toSet();
+    }).handleError((e) => <String>{});
+  }
+
+  Stream<Set<String>> watchMatchedUserIds() {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value({});
+    }
+    return _matches
+        .where('users', arrayContains: currentUid)
+        .where('status', isEqualTo: 'active')
+        .snapshots()
+        .map((snapshot) {
+      final set = <String>{};
+      for (final doc in snapshot.docs) {
+        final users = (doc.data()['users'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList();
+        for (final uid in users) {
+          if (uid != currentUid) set.add(uid);
+        }
+      }
+      return set;
+    }).handleError((e) => <String>{});
   }
 
   Stream<bool> watchMatchStatus(String targetUid) {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value(false);
+    }
     return _matches
         .doc(_matchId(currentUid, targetUid))
         .snapshots()
@@ -221,7 +345,7 @@ class MatchService {
         return false;
       }
       return snapshot.data()?['status'] == 'active';
-    });
+    }).handleError((e) => false);
   }
 
   Future<bool> likeUser(String targetUid) async {
@@ -322,7 +446,10 @@ class MatchService {
   }
 
   Stream<List<LikeNotification>> watchMyLikeNotifications() {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value([]);
+    }
     return _notificationItems(currentUid)
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -346,7 +473,7 @@ class MatchService {
           );
         }),
       );
-    });
+    }).handleError((e) => <LikeNotification>[]);
   }
 
   Stream<int> watchUnreadNotificationCount() {
@@ -357,15 +484,17 @@ class MatchService {
   }
 
   Future<void> markNotificationRead(String notificationId) async {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) return;
     await _notificationItems(currentUid).doc(notificationId).update({
       'read': true,
       'readAt': FieldValue.serverTimestamp(),
-    });
+    }).catchError((e) => debugPrint("Notice marking notification read: $e"));
   }
 
   Future<void> removeLike(String targetUid) async {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) return;
     final matched = await _matches
         .doc(_matchId(currentUid, targetUid))
         .get();
@@ -378,7 +507,10 @@ class MatchService {
   }
 
   Stream<MatchPairData?> watchPair(String targetUid) {
-    final currentUid = _requireCurrentUid();
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value(null);
+    }
 
     return _users.snapshots().map((snapshot) {
       UserProfile? current;
@@ -410,7 +542,42 @@ class MatchService {
             ? (current.longitude! + other.longitude!) / 2
             : null,
       );
+    }).handleError((e) {
+      debugPrint("Error watching match pair: $e");
+      return null;
     });
+  }
+
+  Future<MatchCandidate?> getCandidateForUid(String targetUid) async {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) return null;
+    final currentDoc = await _users.doc(currentUid).get();
+    final targetDoc = await _users.doc(targetUid).get();
+
+    if (!currentDoc.exists || !targetDoc.exists || targetDoc.data() == null) {
+      return null;
+    }
+
+    final currentProfile = UserProfile.fromJson(currentDoc.data()!);
+    final targetProfile = UserProfile.fromJson(targetDoc.data()!);
+
+    final distance = _distanceBetween(currentProfile, targetProfile);
+    final commonInterests = _commonInterests(
+      currentProfile.interests,
+      targetProfile.interests,
+    );
+
+    return MatchCandidate(
+      profile: targetProfile,
+      distanceKm: distance,
+      commonInterests: commonInterests,
+      compatibilityScore: _compatibilityScore(
+        currentProfile,
+        targetProfile,
+        distance,
+        commonInterests.length,
+      ),
+    );
   }
 
   double? _distanceBetween(UserProfile first, UserProfile second) {
@@ -448,9 +615,9 @@ class MatchService {
         ? 0.0
         : commonInterestCount / maximumInterestCount;
 
-    final radius = max(current.discoveryRadius, 1.0);
+    final radius = current.discoveryRadius.clamp(0.05, 0.2);
     final distanceScore = distance == null
-        ? 0.5
+        ? 0.0
         : 1 - min(distance / radius, 1.0);
 
     final purposeScore = current.lookingFor == 'Both' ||

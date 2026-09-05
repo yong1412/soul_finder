@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'meeting_venue.dart';
 
 enum ChatMessageType {
   text,
+  image,
+  video,
   meetingProposal,
   system,
 }
@@ -26,6 +27,7 @@ class ChatMessage {
     required this.text,
     required this.status,
     required this.acceptedBy,
+    this.mediaUrl,
     this.venue,
     this.createdAt,
     this.updatedAt,
@@ -39,47 +41,32 @@ class ChatMessage {
   final String text;
   final MeetingProposalStatus status;
   final List<String> acceptedBy;
+  final String? mediaUrl;
   final MeetingVenue? venue;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
   factory ChatMessage.fromDocument(
-      DocumentSnapshot<Map<String, dynamic>>
-      document,
-      ) {
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
     final data = document.data() ?? {};
-
-    final venueData =
-    data['venue'] as Map<String, dynamic>?;
-
-    final createdTimestamp =
-    data['createdAt'] as Timestamp?;
-
-    final updatedTimestamp =
-    data['updatedAt'] as Timestamp?;
+    final venueData = data['venue'] as Map<String, dynamic>?;
+    final createdTimestamp = data['createdAt'] as Timestamp?;
+    final updatedTimestamp = data['updatedAt'] as Timestamp?;
 
     return ChatMessage(
       id: document.id,
       chatId: data['chatId'] as String? ?? '',
-      senderUid:
-      data['senderUid'] as String? ?? '',
-      receiverUid:
-      data['receiverUid'] as String? ?? '',
-      type: _parseMessageType(
-        data['type'] as String?,
-      ),
+      senderUid: data['senderUid'] as String? ?? '',
+      receiverUid: data['receiverUid'] as String? ?? '',
+      type: _parseMessageType(data['type'] as String?),
       text: data['text'] as String? ?? '',
-      status: _parseProposalStatus(
-        data['status'] as String?,
-      ),
-      acceptedBy:
-      (data['acceptedBy'] as List<dynamic>? ??
-          [])
+      status: _parseProposalStatus(data['status'] as String?),
+      acceptedBy: (data['acceptedBy'] as List<dynamic>? ?? [])
           .map((item) => item.toString())
           .toList(),
-      venue: venueData == null
-          ? null
-          : MeetingVenue.fromJson(venueData),
+      mediaUrl: data['mediaUrl'] as String?,
+      venue: venueData == null ? null : MeetingVenue.fromJson(venueData),
       createdAt: createdTimestamp?.toDate(),
       updatedAt: updatedTimestamp?.toDate(),
     );
@@ -94,8 +81,8 @@ class ChatMessage {
       'text': text,
       'status': status.name,
       'acceptedBy': acceptedBy,
-      if (venue != null)
-        'venue': venue!.toJson(),
+      if (mediaUrl != null && mediaUrl!.isNotEmpty) 'mediaUrl': mediaUrl,
+      if (venue != null) 'venue': venue!.toJson(),
       'createdAt': createdAt == null
           ? FieldValue.serverTimestamp()
           : Timestamp.fromDate(createdAt!),
@@ -114,6 +101,7 @@ class ChatMessage {
     String? text,
     MeetingProposalStatus? status,
     List<String>? acceptedBy,
+    String? mediaUrl,
     MeetingVenue? venue,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -121,25 +109,25 @@ class ChatMessage {
     return ChatMessage(
       id: id ?? this.id,
       chatId: chatId ?? this.chatId,
-      senderUid:
-      senderUid ?? this.senderUid,
-      receiverUid:
-      receiverUid ?? this.receiverUid,
+      senderUid: senderUid ?? this.senderUid,
+      receiverUid: receiverUid ?? this.receiverUid,
       type: type ?? this.type,
       text: text ?? this.text,
       status: status ?? this.status,
-      acceptedBy:
-      acceptedBy ?? this.acceptedBy,
+      acceptedBy: acceptedBy ?? this.acceptedBy,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
       venue: venue ?? this.venue,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
-  static ChatMessageType _parseMessageType(
-      String? value,
-      ) {
+  static ChatMessageType _parseMessageType(String? value) {
     switch (value) {
+      case 'image':
+        return ChatMessageType.image;
+      case 'video':
+        return ChatMessageType.video;
       case 'meetingProposal':
         return ChatMessageType.meetingProposal;
       case 'system':
@@ -149,10 +137,7 @@ class ChatMessage {
     }
   }
 
-  static MeetingProposalStatus
-  _parseProposalStatus(
-      String? value,
-      ) {
+  static MeetingProposalStatus _parseProposalStatus(String? value) {
     switch (value) {
       case 'pending':
         return MeetingProposalStatus.pending;

@@ -112,6 +112,20 @@ class ChatService {
     );
   }
 
+  Future<void> deleteMessage(ChatMessage message) async {
+    final uid = currentUserUid;
+    if (message.senderUid != uid) {
+      throw const ChatException('You can only delete your own messages.');
+    }
+
+    final createdAt = message.createdAt ?? DateTime.now();
+    if (DateTime.now().difference(createdAt).inSeconds > 180) {
+      throw const ChatException('Messages can only be deleted within 3 minutes of sending.');
+    }
+
+    await _messageCollection(message.chatId).doc(message.id).delete();
+  }
+
   Future<void> sendTextMessage({
     required String targetUserUid,
     required String text,
@@ -154,6 +168,54 @@ class ChatService {
         'chatId': chatId,
         'lastMessage': trimmedText,
         'lastMessageType': 'text',
+        'lastSenderUid': currentUid,
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'unreadCounts.$targetUserUid': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+    );
+
+    await batch.commit();
+  }
+
+  Future<void> sendMediaMessage({
+    required String targetUserUid,
+    required ChatMessageType type,
+    required String mediaUrl,
+  }) async {
+    final currentUid = currentUserUid;
+    await _checkActiveMatch(targetUserUid);
+
+    final chatId = createChatId(currentUid, targetUserUid);
+    final messageReference = _messageCollection(chatId).doc();
+
+    final lastMsgText = type == ChatMessageType.image ? '📷 Photo' : '🎥 Video';
+
+    final message = ChatMessage(
+      id: messageReference.id,
+      chatId: chatId,
+      senderUid: currentUid,
+      receiverUid: targetUserUid,
+      type: type,
+      text: lastMsgText,
+      mediaUrl: mediaUrl,
+      status: MeetingProposalStatus.none,
+      acceptedBy: const [],
+    );
+
+    final batch = _firestore.batch();
+
+    batch.set(
+      messageReference,
+      message.toFirestore(),
+    );
+
+    batch.update(
+      _chatReference(chatId),
+      {
+        'chatId': chatId,
+        'lastMessage': lastMsgText,
+        'lastMessageType': type.name,
         'lastSenderUid': currentUid,
         'lastMessageAt': FieldValue.serverTimestamp(),
         'unreadCounts.$targetUserUid': FieldValue.increment(1),
@@ -495,7 +557,7 @@ class ChatService {
       });
 
       return previews;
-    });
+    }).asBroadcastStream();
   }
 
   Stream<int> watchTotalUnreadCount() {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/meeting_venue.dart';
 import '../services/chat_service.dart';
 import '../services/match_service.dart';
+import '../services/venue_service.dart';
 import '../widgets/match_meeting_map.dart';
 
 class MeetSoulView extends StatefulWidget {
@@ -22,6 +23,7 @@ class MeetSoulView extends StatefulWidget {
 class _MeetSoulViewState extends State<MeetSoulView> {
   final MatchService _matchService = MatchService();
   final ChatService _chatService = ChatService();
+  final VenueService _venueService = VenueService();
 
   bool _isSending = false;
   bool _isDiscoveryActive = false;
@@ -35,81 +37,184 @@ class _MeetSoulViewState extends State<MeetSoulView> {
       _discoveredVenues = [];
     });
 
-    // 模拟网络延迟，营造“扫描”氛围
-    await Future.delayed(const Duration(seconds: 2));
-
     if (!mounted) return;
 
     final lat = pair.midpointLatitude!;
     final lng = pair.midpointLongitude!;
 
-    // 在中点附近生成模拟的兴趣点 (POIs)
-    final mockPlaces = [
-      {'name': 'Soul Café', 'cat': 'Public café', 'offLat': 0.0015, 'offLng': 0.001},
-      {'name': 'Garden Mall', 'cat': 'Shopping mall', 'offLat': -0.001, 'offLng': 0.002},
-      {'name': 'Metro Library', 'cat': 'Library', 'offLat': 0.0008, 'offLng': -0.0015},
-      {'name': 'Skyline Restaurant', 'cat': 'Restaurant', 'offLat': -0.002, 'offLng': -0.001},
-    ];
+    List<MeetingVenue> results = [];
 
-    final results = mockPlaces.map((p) {
-      final vLat = lat + (p['offLat'] as double);
-      final vLng = lng + (p['offLng'] as double);
-      return MeetingVenue(
-        id: 'mock_${DateTime.now().millisecondsSinceEpoch}_${p['name']}',
-        name: p['name'] as String,
-        category: p['cat'] as String,
-        address: 'Near the fair midpoint',
-        latitude: vLat,
-        longitude: vLng,
-        mapsUrl: 'https://www.google.com/maps/search/?api=1&query=$vLat,$vLng',
+    try {
+      final suggestions = await _venueService.findPublicVenues(
+        midpointLatitude: lat,
+        midpointLongitude: lng,
+        radiusMeters: 2500,
+        limit: 15,
       );
-    }).toList();
+
+      results = suggestions.map((v) {
+        return MeetingVenue(
+          id: v.id,
+          name: v.name,
+          category: v.category,
+          address: v.address,
+          latitude: v.latitude,
+          longitude: v.longitude,
+          mapsUrl: v.mapUrl,
+          distanceFromMidpointKm: v.distanceFromMidpointKm,
+          rating: v.rating,
+          imageUrl: v.imageUrl,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint("Venue scan network fallback: $e");
+    }
+
+    if (results.isEmpty) {
+      final mockPlaces = [
+        {'name': 'Soul Café', 'cat': 'Public café', 'offLat': 0.0015, 'offLng': 0.001, 'rating': 4.8, 'img': 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600&q=80'},
+        {'name': 'Garden Mall', 'cat': 'Shopping mall', 'offLat': -0.001, 'offLng': 0.002, 'rating': 4.7, 'img': 'https://images.unsplash.com/photo-1567449303078-57ad995bd301?w=600&q=80'},
+        {'name': 'Metro Library', 'cat': 'Library', 'offLat': 0.0008, 'offLng': -0.0015, 'rating': 4.6, 'img': 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?w=600&q=80'},
+        {'name': 'Skyline Restaurant', 'cat': 'Restaurant', 'offLat': -0.002, 'offLng': -0.001, 'rating': 4.9, 'img': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=80'},
+      ];
+
+      results = mockPlaces.map((p) {
+        final vLat = lat + (p['offLat'] as double);
+        final vLng = lng + (p['offLng'] as double);
+        return MeetingVenue(
+          id: 'mock_${DateTime.now().millisecondsSinceEpoch}_${p['name']}',
+          name: p['name'] as String,
+          category: p['cat'] as String,
+          address: 'Near the fair midpoint',
+          latitude: vLat,
+          longitude: vLng,
+          mapsUrl: 'https://www.google.com/maps/search/?api=1&query=$vLat,$vLng',
+          rating: p['rating'] as double,
+          imageUrl: p['img'] as String,
+        );
+      }).toList();
+    }
 
     setState(() {
       _discoveredVenues = results;
       _isDiscoveryActive = false;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Radar scan complete! Safe places detected.'),
-        backgroundColor: Color(0xFF3B82F6),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Radar scan complete! ${results.length} top-rated spots found near midpoint.'),
+          backgroundColor: const Color(0xFF3B82F6),
+        ),
+      );
+    }
   }
 
   Future<void> _shareSelectedVenue(MeetingVenue venue) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Share this place?'),
-        content: Column(
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      isScrollControlled: true,
+      builder: (bottomContext) => SafeArea(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              venue.name,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            Text(venue.category, style: const TextStyle(color: Color(0xFF3B82F6))),
-            const SizedBox(height: 12),
-            const Text(
-              'This location will be sent to your shared chat for confirmation.',
-              style: TextStyle(color: Colors.white60),
+            if (venue.imageUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                child: Image.network(
+                  venue.imageUrl,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 120,
+                    color: const Color(0xFF334155),
+                    child: const Icon(Icons.storefront_outlined, size: 50, color: Colors.white38),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          venue.name,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              venue.rating.toStringAsFixed(1),
+                              style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(venue.category, style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.w600)),
+                  if (venue.address.isNotEmpty && venue.address != 'Address unavailable') ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined, color: Colors.white54, size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            venue.address,
+                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(bottomContext, false),
+                          icon: const Icon(Icons.close),
+                          label: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.pop(bottomContext, true),
+                          icon: const Icon(Icons.send_rounded),
+                          label: const Text('Send Proposal'),
+                          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF3B82F6)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Send to Chat'),
-          ),
-        ],
       ),
     );
 
@@ -362,6 +467,17 @@ class _MeetSoulViewState extends State<MeetSoulView> {
         ListView(
           padding: const EdgeInsets.all(18),
           children: [
+            Row(
+              children: [
+                const Icon(Icons.swap_calls_rounded, color: Color(0xFF38BDF8), size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Fair Midpoint ($distanceText)',
+                  style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             MatchMeetingMap(
               pair: pair,
               otherUserName: widget.soulName,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../controllers/auth_controller.dart';
+import '../../models/interest_data.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({
@@ -20,12 +21,13 @@ class _RegisterViewState extends State<RegisterView> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _ageController = TextEditingController();
+  final _heightController = TextEditingController();
+  final _weightController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _interestController = TextEditingController();
 
   String _gender = 'Prefer not to say';
-  String _lookingFor = 'Friendship';
+  final List<String> _selectedInterests = [];
 
   bool _hidePassword = true;
   bool _hideConfirmPassword = true;
@@ -44,9 +46,10 @@ class _RegisterViewState extends State<RegisterView> {
     _nameController.dispose();
     _emailController.dispose();
     _ageController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _interestController.dispose();
     super.dispose();
   }
 
@@ -57,20 +60,26 @@ class _RegisterViewState extends State<RegisterView> {
       return;
     }
 
-    final interests = _interestController.text
-        .split(',')
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toList();
+    if (_selectedInterests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one interest.')),
+      );
+      return;
+    }
+
+    final heightVal = double.tryParse(_heightController.text.trim());
+    final weightVal = double.tryParse(_weightController.text.trim());
 
     final success = await widget.controller.register(
       email: _emailController.text.trim(),
       password: _passwordController.text,
       name: _nameController.text.trim(),
       age: int.parse(_ageController.text.trim()),
+      heightCm: heightVal,
+      weightKg: weightVal,
       gender: _gender,
-      lookingFor: _lookingFor,
-      interests: interests,
+      lookingFor: 'Both',
+      interests: _selectedInterests.map((label) => InterestData.getId(label)).toList(),
     );
 
     if (!mounted) {
@@ -210,6 +219,57 @@ class _RegisterViewState extends State<RegisterView> {
 
                         const SizedBox(height: 14),
 
+                        // Height & Weight Row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _heightController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: _inputDecoration(
+                                  label: 'Height (cm)',
+                                  icon: Icons.height,
+                                ),
+                                validator: (value) {
+                                  final trimmed = value?.trim() ?? '';
+                                  if (trimmed.isEmpty) {
+                                    return 'Enter height';
+                                  }
+                                  final height = double.tryParse(trimmed);
+                                  if (height == null || height < 50 || height > 250) {
+                                    return '50-250 cm';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _weightController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: _inputDecoration(
+                                  label: 'Weight (kg)',
+                                  icon: Icons.monitor_weight_outlined,
+                                ),
+                                validator: (value) {
+                                  final trimmed = value?.trim() ?? '';
+                                  if (trimmed.isEmpty) {
+                                    return 'Enter weight';
+                                  }
+                                  final weight = double.tryParse(trimmed);
+                                  if (weight == null || weight < 20 || weight > 300) {
+                                    return '20-300 kg';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 14),
+
                         DropdownButtonFormField<String>(
                           initialValue: _gender,
                           decoration: _inputDecoration(
@@ -246,59 +306,9 @@ class _RegisterViewState extends State<RegisterView> {
 
                         const SizedBox(height: 14),
 
-                        DropdownButtonFormField<String>(
-                          initialValue: _lookingFor,
-                          decoration: _inputDecoration(
-                            label: 'Looking for',
-                            icon: Icons.favorite_outline,
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'Friendship',
-                              child: Text('Friendship'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Relationship',
-                              child: Text('Relationship'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Both',
-                              child: Text(
-                                'Friendship or relationship',
-                              ),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _lookingFor = value;
-                              });
-                            }
-                          },
-                        ),
+                        _buildInterestsSection(colors),
 
-                        const SizedBox(height: 14),
-
-                        TextFormField(
-                          controller: _interestController,
-                          decoration: _inputDecoration(
-                            label: 'Interests',
-                            icon: Icons.interests_outlined,
-                            hint:
-                            'Music, hiking, movies',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '')
-                                .trim()
-                                .isEmpty) {
-                              return 'Enter at least one interest.';
-                            }
-
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 24),
 
                         TextFormField(
                           controller: _passwordController,
@@ -390,12 +400,12 @@ class _RegisterViewState extends State<RegisterView> {
                             const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: colors.error
-                                  .withOpacity(0.1),
+                                  .withValues(alpha: 0.1),
                               borderRadius:
                               BorderRadius.circular(12),
                               border: Border.all(
                                 color: colors.error
-                                    .withOpacity(0.3),
+                                    .withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -471,6 +481,80 @@ class _RegisterViewState extends State<RegisterView> {
     );
   }
 
+  Widget _buildInterestsSection(ColorScheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.interests_outlined, color: theme.primary, size: 20),
+            const SizedBox(width: 12),
+            const Text(
+              'Interests',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.white70,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${_selectedInterests.length}/5',
+              style: TextStyle(
+                color: _selectedInterests.length >= 5 ? theme.secondary : Colors.white38,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: InterestData.allLabels.map((interest) {
+            final isSelected = _selectedInterests.contains(interest);
+            return FilterChip(
+              label: Text(interest),
+              selected: isSelected,
+              onSelected: (bool selected) {
+                setState(() {
+                  if (selected) {
+                    if (_selectedInterests.length < 5) {
+                      _selectedInterests.add(interest);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('You can select up to 5 interests only.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  } else {
+                    _selectedInterests.remove(interest);
+                  }
+                });
+              },
+              selectedColor: theme.primary.withValues(alpha: 0.2),
+              checkmarkColor: theme.primary,
+              labelStyle: TextStyle(
+                color: isSelected ? theme.primary : Colors.white70,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              backgroundColor: const Color(0xFF1E293B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isSelected ? theme.primary : Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   InputDecoration _inputDecoration({
     required String label,
     required IconData icon,
@@ -489,7 +573,7 @@ class _RegisterViewState extends State<RegisterView> {
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(
-          color: Colors.white.withOpacity(0.06),
+          color: Colors.white.withValues(alpha: 0.06),
         ),
       ),
       focusedBorder: OutlineInputBorder(

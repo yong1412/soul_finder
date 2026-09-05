@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/user_profile.dart';
 
@@ -31,6 +32,8 @@ class AuthService {
     required String gender,
     required String lookingFor,
     required List<String> interests,
+    double? heightCm,
+    double? weightKg,
   }) async {
     try {
       final normalizedEmail =
@@ -59,8 +62,10 @@ class AuthService {
         bio: 'Looking for meaningful connections',
         interests: interests,
         lookingFor: lookingFor,
-        discoveryRadius: 5,
+        discoveryRadius: 0.2,
         profileImageBase64: '',
+        heightCm: heightCm,
+        weightKg: weightKg,
       );
 
       await _users.doc(firebaseUser.uid).set({
@@ -72,8 +77,10 @@ class AuthService {
         'bio': 'Looking for meaningful connections',
         'interests': interests,
         'lookingFor': lookingFor,
-        'discoveryRadius': 5.0,
+        'discoveryRadius': 0.2,
         'profileImageBase64': '',
+        if (heightCm != null) 'heightCm': heightCm,
+        if (weightKg != null) 'weightKg': weightKg,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -208,24 +215,28 @@ class AuthService {
 
       await _users
           .doc(firebaseUser.uid)
-          .update({
+          .set({
         'uid': updatedProfile.uid,
         'email': updatedProfile.email,
         'name': updatedProfile.name,
         'age': updatedProfile.age,
         'gender': updatedProfile.gender,
         'bio': updatedProfile.bio,
-        'interests':
-        updatedProfile.interests,
-        'lookingFor':
-        updatedProfile.lookingFor,
-        'discoveryRadius':
-        updatedProfile.discoveryRadius,
-        'profileImageBase64':
-        updatedProfile.profileImageBase64,
-        'updatedAt':
-        FieldValue.serverTimestamp(),
-      });
+        'interests': updatedProfile.interests,
+        'lookingFor': updatedProfile.lookingFor,
+        'discoveryRadius': updatedProfile.discoveryRadius,
+        'profileImageBase64': updatedProfile.profileImageBase64,
+        'isOnline': updatedProfile.isOnline,
+        'hideOnlineStatus': updatedProfile.hideOnlineStatus,
+        'heightCm': updatedProfile.heightCm,
+        'weightKg': updatedProfile.weightKg,
+        'isPrivateProfile': updatedProfile.isPrivateProfile,
+        'hideBio': updatedProfile.hideBio,
+        'hideStats': updatedProfile.hideStats,
+        'hideInterests': updatedProfile.hideInterests,
+        'hideAgeGender': updatedProfile.hideAgeGender,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       return updatedProfile;
     } on FirebaseException catch (error) {
@@ -233,6 +244,83 @@ class AuthService {
         error.message ??
             'Unable to update profile.',
       );
+    }
+  }
+
+  Future<UserProfile> updateProfilePrivacy({
+    required bool isPrivateProfile,
+    required bool hideBio,
+    required bool hideStats,
+    required bool hideInterests,
+    required bool hideAgeGender,
+  }) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw const AuthException('You are not signed in.');
+    }
+
+    try {
+      await _users.doc(firebaseUser.uid).set({
+        'isPrivateProfile': isPrivateProfile,
+        'hideBio': hideBio,
+        'hideStats': hideStats,
+        'hideInterests': hideInterests,
+        'hideAgeGender': hideAgeGender,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final doc = await _users.doc(firebaseUser.uid).get();
+      return UserProfile.fromJson(doc.data()!);
+    } on FirebaseException catch (error) {
+      throw AuthException(error.message ?? 'Unable to update profile privacy settings.');
+    }
+  }
+
+  Future<UserProfile> setHideOnlineStatus(bool hide) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw const AuthException('You are not signed in.');
+    }
+
+    try {
+      await _users.doc(firebaseUser.uid).set({
+        'hideOnlineStatus': hide,
+      }, SetOptions(merge: true));
+
+      final doc = await _users.doc(firebaseUser.uid).get();
+      return UserProfile.fromJson(doc.data()!);
+    } on FirebaseException catch (error) {
+      throw AuthException(error.message ?? 'Unable to update privacy status.');
+    }
+  }
+
+  Future<UserProfile> setRadarMode(String modeStr) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw const AuthException('You are not signed in.');
+    }
+
+    try {
+      await _users.doc(firebaseUser.uid).set({
+        'radarMode': modeStr,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final doc = await _users.doc(firebaseUser.uid).get();
+      return UserProfile.fromJson(doc.data()!);
+    } on FirebaseException catch (error) {
+      throw AuthException(error.message ?? 'Unable to update radar mode.');
+    }
+  }
+
+  Future<void> updateOnlineStatusDirect(String uid, bool isOnline) async {
+    try {
+      await _users.doc(uid).set({
+        'isOnline': isOnline,
+        'lastActiveAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("Error updating online status direct for $uid: $e");
     }
   }
 

@@ -118,33 +118,68 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                     ),
                     MarkerLayer(
                       markers: [
-                        // Suggested Venues (Real discovery markers)
+                        // Suggested Venues (Real discovery markers with Rating Stars ⭐)
                         ...widget.suggestedVenues.map((venue) => Marker(
                               point: LatLng(venue.latitude, venue.longitude),
-                              width: 44,
-                              height: 44,
+                              width: 60,
+                              height: 60,
                               child: GestureDetector(
                                 onTap: () => widget.onVenueSelected?.call(venue),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1E293B),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: const Color(0xFF22C55E),
-                                      width: 2,
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1E293B),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: const Color(0xFF22C55E),
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.4),
+                                            blurRadius: 6,
+                                          )
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.restaurant,
+                                        color: Color(0xFF22C55E),
+                                        size: 20,
+                                      ),
                                     ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.3),
-                                        blurRadius: 4,
-                                      )
-                                    ],
-                                  ),
-                                  child: const Icon(
-                                    Icons.restaurant,
-                                    color: Color(0xFF22C55E),
-                                    size: 20,
-                                  ),
+                                    // ⭐ Rating Star Badge
+                                    Positioned(
+                                      right: -2,
+                                      bottom: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF0F172A),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: Colors.amber, width: 1),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.star_rounded, color: Colors.amber, size: 10),
+                                            const SizedBox(width: 1),
+                                            Text(
+                                              venue.rating.toStringAsFixed(1),
+                                              style: const TextStyle(
+                                                color: Colors.amber,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             )),

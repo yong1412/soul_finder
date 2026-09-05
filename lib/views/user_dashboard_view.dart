@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../controllers/auth_controller.dart';
+import '../models/interest_data.dart';
+import '../models/user_profile.dart';
 import '../services/match_service.dart';
 import '../services/profile_stats_service.dart';
 import 'chat_list_view.dart';
@@ -439,6 +441,209 @@ class UserDashboardView extends StatelessWidget {
     );
   }
 
+  Future<void> _showPrivacySettingsModal(
+      BuildContext context,
+      UserProfile user,
+      ) async {
+    bool isPrivate = user.isPrivateProfile;
+    bool hideBio = user.hideBio;
+    bool hideStats = user.hideStats;
+    bool hideInterests = user.hideInterests;
+    bool hideAgeGender = user.hideAgeGender;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.lock_person_outlined,
+                          color: Color(0xFFF43F5E),
+                          size: 24,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Profile Privacy Settings',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Choose whether to hide specific details or activate Full Private Mode.',
+                      style: TextStyle(color: Colors.white60, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Master Toggle
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isPrivate
+                            ? const Color(0xFFF43F5E).withValues(alpha: 0.15)
+                            : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isPrivate
+                              ? const Color(0xFFF43F5E).withValues(alpha: 0.4)
+                              : Colors.white10,
+                        ),
+                      ),
+                      child: SwitchListTile(
+                        value: isPrivate,
+                        activeThumbColor: const Color(0xFFF43F5E),
+                        title: const Text(
+                          '🔒 Full Private Mode (Hide Everything)',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: const Text(
+                          'Hides Bio, Height/Weight, Interests & Age from public view at once.',
+                          style: TextStyle(fontSize: 12, color: Colors.white60),
+                        ),
+                        onChanged: (val) {
+                          setModalState(() {
+                            isPrivate = val;
+                          });
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Custom Granular Privacy Controls',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Granular Field Controls
+                    Opacity(
+                      opacity: isPrivate ? 0.4 : 1.0,
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            title: const Text('Hide Bio'),
+                            subtitle: const Text('Do not show your bio statement to public viewers'),
+                            value: isPrivate || hideBio,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideBio = val);
+                                  },
+                          ),
+                          SwitchListTile(
+                            title: const Text('Hide Height & Weight'),
+                            subtitle: const Text('Do not show body stats on public profile'),
+                            value: isPrivate || hideStats,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideStats = val);
+                                  },
+                          ),
+                          SwitchListTile(
+                            title: const Text('Hide Interests'),
+                            subtitle: const Text('Do not display interest badges to public viewers'),
+                            value: isPrivate || hideInterests,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideInterests = val);
+                                  },
+                          ),
+                          SwitchListTile(
+                            title: const Text('Hide Age & Gender'),
+                            subtitle: const Text('Hide age and gender from public profile'),
+                            value: isPrivate || hideAgeGender,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideAgeGender = val);
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(modalContext);
+                          final success = await controller.updateProfilePrivacy(
+                            isPrivateProfile: isPrivate,
+                            hideBio: hideBio,
+                            hideStats: hideStats,
+                            hideInterests: hideInterests,
+                            hideAgeGender: hideAgeGender,
+                          );
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? 'Profile privacy settings updated.'
+                                      : 'Failed to update privacy settings.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Save Privacy Settings'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF3B82F6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openEditProfile(
       BuildContext context,
       ) async {
@@ -462,7 +667,9 @@ class UserDashboardView extends StatelessWidget {
             title: const Text('My Matches'),
             centerTitle: true,
           ),
-          body: const ChatListView(),
+          body: ChatListView(
+            authController: controller,
+          ),
         ),
       ),
     );
@@ -492,55 +699,88 @@ class UserDashboardView extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem({
+  Widget _buildStatCard({
     required Stream<int> stream,
     required String label,
+    required IconData icon,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return StreamBuilder<int>(
       stream: stream,
       initialData: 0,
       builder: (context, snapshot) {
-        return Semantics(
-          button: true,
-          label: 'Open $label list',
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    snapshot.hasError ? '—' : '${snapshot.data ?? 0}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+        final count = snapshot.hasError ? 0 : (snapshot.data ?? 0);
+
+        return Expanded(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(20),
+              child: Ink(
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.35),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white54,
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        color: color,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$count',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white70,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.chevron_right,
-                        size: 15,
-                        color: Colors.white38,
-                      ),
-                    ],
-                  ),
-                ],
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 14,
+                          color: Colors.white38,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -650,60 +890,48 @@ class UserDashboardView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 30),
+          const SizedBox(height: 12),
 
+          // 🟢 Public Status Pill Badge
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              vertical: 20,
-              horizontal: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: theme.surface,
-              borderRadius:
-              BorderRadius.circular(20),
+              color: user.isPubliclyOnline
+                  ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                  : (user.hideOnlineStatus
+                      ? const Color(0xFF818CF8).withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.08)),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: user.isPubliclyOnline
+                    ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                    : (user.hideOnlineStatus ? const Color(0xFF818CF8).withValues(alpha: 0.4) : Colors.white24),
+                width: 1,
+              ),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: _buildStatItem(
-                    stream: _profileStatsService.watchMatchCount(),
-                    label: 'Matches',
-                    onTap: () => _openMatches(context),
-                  ),
+                Icon(
+                  user.hideOnlineStatus
+                      ? Icons.visibility_off_outlined
+                      : (user.isOnline ? Icons.circle : Icons.circle_outlined),
+                  size: 12,
+                  color: user.isPubliclyOnline
+                      ? const Color(0xFF10B981)
+                      : (user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white54),
                 ),
-
-                Container(
-                  width: 1,
-                  height: 45,
-                  color: Colors.white.withValues(
-                    alpha: 0.10,
-                  ),
-                ),
-
-                Expanded(
-                  child: _buildStatItem(
-                    stream: _matchService
-                        .watchCandidates()
-                        .map((candidates) => candidates.length),
-                    label: 'Near You',
-                    onTap: () => _openNearYou(context),
-                  ),
-                ),
-
-                Container(
-                  width: 1,
-                  height: 45,
-                  color: Colors.white.withValues(
-                    alpha: 0.10,
-                  ),
-                ),
-
-                Expanded(
-                  child: _buildStatItem(
-                    stream: _profileStatsService.watchProfileViewCount(),
-                    label: 'Views',
-                    onTap: () => _openProfileViews(context),
+                const SizedBox(width: 8),
+                Text(
+                  user.hideOnlineStatus
+                      ? 'Incognito Stealth Active (Hidden)'
+                      : (user.isOnline ? 'Online • Visible on Radar' : 'Offline'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: user.isPubliclyOnline
+                        ? const Color(0xFF10B981)
+                        : (user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white54),
                   ),
                 ),
               ],
@@ -711,6 +939,99 @@ class UserDashboardView extends StatelessWidget {
           ),
 
           const SizedBox(height: 24),
+
+          // 3 Vibrant High-End Stats Cards: Matches, Near You, Views
+          Row(
+            children: [
+              _buildStatCard(
+                stream: _profileStatsService.watchMatchCount(),
+                label: 'Matches',
+                icon: Icons.favorite_rounded,
+                color: const Color(0xFFF43F5E),
+                onTap: () => _openMatches(context),
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                stream: _matchService
+                    .watchCandidates()
+                    .map((candidates) => candidates.length),
+                label: 'Near You',
+                icon: Icons.radar_rounded,
+                color: const Color(0xFF38BDF8),
+                onTap: () => _openNearYou(context),
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                stream: _profileStatsService.watchProfileViewCount(),
+                label: 'Views',
+                icon: Icons.remove_red_eye_rounded,
+                color: const Color(0xFF10B981),
+                onTap: () => _openProfileViews(context),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Height & Weight Card (if specified)
+          if (user.heightCm != null || user.weightKg != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: theme.surface,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  if (user.heightCm != null)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.height, color: Color(0xFF38BDF8)),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Height', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${user.heightCm!.toStringAsFixed(0)} cm',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (user.heightCm != null && user.weightKg != null)
+                    Container(width: 1, height: 36, color: Colors.white12),
+                  if (user.weightKg != null)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 12),
+                          const Icon(Icons.monitor_weight_outlined, color: Color(0xFF10B981)),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Weight', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${user.weightKg!.toStringAsFixed(0)} kg',
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
 
           Container(
             width: double.infinity,
@@ -724,39 +1045,6 @@ class UserDashboardView extends StatelessWidget {
               crossAxisAlignment:
               CrossAxisAlignment.start,
               children: [
-
-                // Looking For
-                Row(
-                  children: [
-                    Icon(
-                      Icons.favorite_outline,
-                      color: theme.secondary,
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Looking For',
-                      style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  user.lookingFor == 'Both'
-                      ? 'Friendship or relationship'
-                      : user.lookingFor,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-
                 // Interests
                 Row(
                   children: [
@@ -781,9 +1069,9 @@ class UserDashboardView extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children:
-                  user.interests.map((interest) {
+                  user.interests.map((interestId) {
                     return Chip(
-                      label: Text(interest),
+                      label: Text(InterestData.getLabel(interestId)),
                       backgroundColor:
                       theme.primary.withValues(
                         alpha: 0.12,
@@ -805,53 +1093,6 @@ class UserDashboardView extends StatelessWidget {
             ),
             child: Column(
               children: [
-
-                // Discovery Radius
-                ListTile(
-                  leading: Container(
-                    padding:
-                    const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.primary
-                          .withValues(
-                        alpha: 0.1,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.radar,
-                      color: theme.primary,
-                    ),
-                  ),
-                  title: const Text(
-                    'Discovery Radius',
-                  ),
-                  subtitle: const Text(
-                    'Control how far Soul Finder searches',
-                  ),
-                  trailing: Text(
-                    '${user.discoveryRadius.round()} KM',
-                    style: TextStyle(
-                      fontWeight:
-                      FontWeight.bold,
-                      color:
-                      theme.secondary,
-                    ),
-                  ),
-                  onTap: () {
-                    _openEditProfile(
-                      context,
-                    );
-                  },
-                ),
-
-                Divider(
-                  color: Colors.white.withValues(
-                    alpha: 0.05,
-                  ),
-                  height: 1,
-                ),
-
                 // Edit Profile
                 ListTile(
                   leading: Container(
@@ -884,6 +1125,93 @@ class UserDashboardView extends StatelessWidget {
                       context,
                     );
                   },
+                ),
+
+                Divider(
+                  color: Colors.white.withValues(
+                    alpha: 0.05,
+                  ),
+                  height: 1,
+                ),
+
+                // 🕵️‍♂️ Incognito Mode Switch
+                SwitchListTile(
+                  secondary: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: user.hideOnlineStatus
+                          ? const Color(0xFF818CF8).withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.06),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.visibility_off_outlined,
+                      color: user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white70,
+                    ),
+                  ),
+                  title: Text(
+                    'Incognito Mode',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: user.hideOnlineStatus ? const Color(0xFF818CF8) : Colors.white,
+                    ),
+                  ),
+                  subtitle: Text(
+                    user.hideOnlineStatus
+                        ? 'Stealth Active • Hidden from Radar, Chat & Discover'
+                        : 'Hide online status & disappear from Radar & Chat list',
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  value: user.hideOnlineStatus,
+                  activeThumbColor: const Color(0xFF818CF8),
+                  activeTrackColor: const Color(0xFF818CF8).withValues(alpha: 0.3),
+                  inactiveThumbColor: Colors.white38,
+                  inactiveTrackColor: Colors.white10,
+                  onChanged: (hide) async {
+                    await controller.setHideOnlineStatus(hide);
+                  },
+                ),
+
+                Divider(
+                  color: Colors.white.withValues(
+                    alpha: 0.05,
+                  ),
+                  height: 1,
+                ),
+
+                // 🔒 Profile Private Mode Settings
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: user.isPrivateProfile
+                          ? const Color(0xFFF43F5E).withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.06),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.lock_person_outlined,
+                      color: user.isPrivateProfile ? const Color(0xFFF43F5E) : Colors.white70,
+                    ),
+                  ),
+                  title: Text(
+                    'Profile Privacy & Private Mode',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: user.isPrivateProfile ? const Color(0xFFF43F5E) : Colors.white,
+                    ),
+                  ),
+                  subtitle: Text(
+                    user.isPrivateProfile
+                        ? 'Master Private Mode Active • All optional details hidden'
+                        : 'Choose specific details to hide or hide everything',
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.tune_outlined,
+                    color: Colors.white54,
+                  ),
+                  onTap: () => _showPrivacySettingsModal(context, user),
                 ),
 
                 Divider(
@@ -929,10 +1257,10 @@ class UserDashboardView extends StatelessWidget {
               ],
             ),
           ),
-
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
+
+
 }

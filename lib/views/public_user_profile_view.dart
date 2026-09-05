@@ -2,8 +2,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../models/interest_data.dart';
 import '../services/match_service.dart';
 import '../services/profile_stats_service.dart';
+import '../services/report_service.dart';
 import 'chat_conversation_view.dart';
 import 'meet_soul_view.dart';
 
@@ -160,18 +162,34 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
     final candidate = widget.candidate;
     final profile = candidate.profile;
     final profileImage = _decodeProfileImage(profile.profileImageBase64);
-    final displayName = profile.age > 0
-        ? '${profile.name}, ${profile.age}'
-        : profile.name;
+    final displayName = profile.shouldHideAgeGender
+        ? profile.name
+        : (profile.age > 0 ? '${profile.name}, ${profile.age}' : profile.name);
+    final isHighMatch = candidate.compatibilityScore >= 80;
     final distanceText = candidate.distanceKm == null
         ? 'Unavailable'
-        : '${candidate.distanceKm!.toStringAsFixed(1)} km';
+        : candidate.distanceKm! < 1.0
+            ? '${(candidate.distanceKm! * 1000).round()} m'
+            : '${candidate.distanceKm!.toStringAsFixed(1)} km';
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         title: const Text('Soul Profile'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Report User',
+            icon: const Icon(Icons.flag_outlined, color: Colors.redAccent),
+            onPressed: () {
+              showReportUserDialog(
+                context: context,
+                targetUid: profile.uid,
+                targetName: profile.name,
+              );
+            },
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 120),
@@ -209,24 +227,141 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            displayName,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                displayName,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: profile.isOnline ? const Color(0xFF10B981) : Colors.white38,
+                  boxShadow: profile.isOnline
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.6),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ]
+                      : null,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 7),
-          Text(
-            profile.bio.trim().isEmpty
-                ? 'Looking for meaningful connections'
-                : profile.bio.trim(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF60A5FA),
-              fontSize: 16,
+          if (profile.isPrivateProfile) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF818CF8).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF818CF8).withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline, color: Color(0xFF818CF8), size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Private Profile Mode Active',
+                      style: TextStyle(
+                        color: Color(0xFF818CF8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (profile.isSuspended) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Account Suspended (Reported 5+ Times)',
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          // Dedicated "Bio" Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: const Color(0xFF38BDF8).withValues(alpha: 0.25),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bio',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  profile.shouldHideBio
+                      ? '🔒 Bio is set to private.'
+                      : (profile.bio.trim().isEmpty
+                          ? 'Passionate about exploring new places, meeting like-minded souls, and enjoying genuine conversations.'
+                          : profile.bio.trim()),
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: profile.shouldHideBio ? Colors.white54 : Colors.white,
+                    fontStyle: profile.shouldHideBio ? FontStyle.italic : FontStyle.normal,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -242,6 +377,7 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                   child: _ProfileStat(
                     value: '${candidate.compatibilityScore.round()}%',
                     label: 'Compatible',
+                    valueColor: isHighMatch ? const Color(0xFF10B981) : null,
                   ),
                 ),
                 const _VerticalDivider(),
@@ -269,67 +405,118 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                 _InformationRow(
                   icon: Icons.person_outline,
                   label: 'Gender',
-                  value: profile.gender.trim().isEmpty
-                      ? 'Not specified'
-                      : profile.gender,
+                  value: profile.shouldHideAgeGender
+                      ? '🔒 Private'
+                      : (profile.gender.trim().isEmpty ? 'Not specified' : profile.gender),
                 ),
-                const SizedBox(height: 14),
-                _InformationRow(
-                  icon: Icons.search,
-                  label: 'Looking for',
-                  value: profile.lookingFor.trim().isEmpty
-                      ? 'Not specified'
-                      : profile.lookingFor,
-                ),
+                if (!profile.shouldHideStats && profile.heightCm != null) ...[
+                  const SizedBox(height: 14),
+                  _InformationRow(
+                    icon: Icons.height,
+                    label: 'Height',
+                    value: '${profile.heightCm!.toStringAsFixed(0)} cm',
+                  ),
+                ],
+                if (!profile.shouldHideStats && profile.weightKg != null) ...[
+                  const SizedBox(height: 14),
+                  _InformationRow(
+                    icon: Icons.monitor_weight_outlined,
+                    label: 'Weight',
+                    value: '${profile.weightKg!.toStringAsFixed(0)} kg',
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 16),
-          _ProfileSection(
-            title: 'Interests',
-            child: profile.interests.isEmpty
-                ? const Text(
-              'No interests added yet.',
-              style: TextStyle(color: Colors.white60),
-            )
-                : Wrap(
-              spacing: 9,
-              runSpacing: 9,
-              children: profile.interests
-                  .map(
-                    (interest) => Chip(
-                  avatar: Icon(
-                    candidate.commonInterests.any(
-                          (item) =>
-                      item.toLowerCase() ==
-                          interest.toLowerCase(),
-                    )
-                        ? Icons.favorite
-                        : Icons.tag,
-                    size: 16,
-                    color: candidate.commonInterests.any(
-                          (item) =>
-                      item.toLowerCase() ==
-                          interest.toLowerCase(),
-                    )
-                        ? const Color(0xFFF43F5E)
-                        : Colors.white54,
-                  ),
-                  label: Text(interest),
-                  backgroundColor: const Color(0xFF273449),
-                  side: BorderSide.none,
+
+          // Interests Card (Styled identically to UserDashboardView My Profile)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.interests_outlined,
+                      color: Color(0xFF3B82F6),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Interests',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-              )
-                  .toList(),
+                const SizedBox(height: 12),
+                profile.shouldHideInterests
+                    ? const Text(
+                        '🔒 Interests are set to private.',
+                        style: TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic),
+                      )
+                    : (profile.interests.isEmpty
+                        ? const Text(
+                            'No interests added yet.',
+                            style: TextStyle(color: Colors.white38, fontSize: 13),
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: profile.interests.map((rawInterest) {
+                              final isCommon = candidate.commonInterests.any(
+                                (item) => item.toLowerCase() == rawInterest.toLowerCase(),
+                              );
+                              final label = InterestData.getLabel(rawInterest);
+
+                              return Chip(
+                                avatar: Icon(
+                                  isCommon ? Icons.favorite : Icons.tag,
+                                  size: 14,
+                                  color: isCommon ? const Color(0xFFF43F5E) : const Color(0xFF38BDF8),
+                                ),
+                                label: Text(
+                                  label,
+                                  style: TextStyle(
+                                    color: isCommon ? const Color(0xFFF43F5E) : Colors.white,
+                                    fontWeight: isCommon ? FontWeight.bold : FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                backgroundColor: isCommon
+                                    ? const Color(0xFFF43F5E).withValues(alpha: 0.15)
+                                    : const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                                side: BorderSide(
+                                  color: isCommon
+                                      ? const Color(0xFFF43F5E).withValues(alpha: 0.4)
+                                      : const Color(0xFF3B82F6).withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              );
+                            }).toList(),
+                          )),
+                if (candidate.commonInterests.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    '❤️ Pink heart badges mark interests you both share in common!',
+                    style: TextStyle(color: Color(0xFFF43F5E), fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (candidate.commonInterests.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text(
-              'The heart icon marks an interest you both share.',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ],
           const SizedBox(height: 16),
           const Card(
             color: Color(0xFF1E293B),
@@ -384,17 +571,21 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                           icon: const Icon(Icons.chat_bubble_outline),
                           label: const Text('Chat'),
                           style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF3B82F6),
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 15),
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: FilledButton.icon(
                           onPressed: _openMeetingPlanner,
                           icon: const Icon(Icons.restaurant_outlined),
                           label: const Text('Plan Meeting'),
-                          style: OutlinedButton.styleFrom(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF3B82F6),
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 15),
                           ),
                         ),
@@ -460,10 +651,12 @@ class _ProfileStat extends StatelessWidget {
   const _ProfileStat({
     required this.value,
     required this.label,
+    this.valueColor,
   });
 
   final String value;
   final String label;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -473,9 +666,10 @@ class _ProfileStat extends StatelessWidget {
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
+            color: valueColor ?? Colors.white,
           ),
         ),
         const SizedBox(height: 5),
