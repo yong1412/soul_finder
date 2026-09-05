@@ -390,6 +390,20 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     return null;
   }
 
+  /// Get gender accent color: Male (Blue), Female (Pink/Red), Non-binary (Green), Prefer not to say (Purple)
+  Color _getGenderColor(String gender) {
+    final normalized = gender.trim().toLowerCase();
+    if (normalized == 'male') {
+      return const Color(0xFF38BDF8); // 💙 Blue for Male
+    } else if (normalized == 'female') {
+      return const Color(0xFFF43F5E); // 💖 Pink/Rose Red for Female
+    } else if (normalized == 'non-binary' || normalized == 'non binary') {
+      return const Color(0xFF10B981); // 💚 Green for Non-binary
+    } else {
+      return const Color(0xFF8B5CF6); // 💜 Purple for Prefer not to say / undisclosed
+    }
+  }
+
   /// Build Candidate Card with Privacy Rules in All Souls Mode & Event Badges / Distance Badges
   Widget _buildCandidateCard({
     required MatchCandidate candidate,
@@ -401,6 +415,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     final profile = candidate.profile;
     final score = candidate.compatibilityScore.round();
     final isHighMatch = candidate.compatibilityScore >= 80;
+    final genderColor = _getGenderColor(profile.gender);
 
     final profileImage = isAllSoulsMode
         ? null // 🔒 Hide profile image in All Souls mode!
@@ -413,11 +428,11 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: detectedEvent != null
-              ? const Color(0xFF38BDF8)
+              ? const Color(0xFFF59E0B)
               : (isLiked
-                  ? const Color(0xFFF43F5E).withValues(alpha: 0.5)
-                  : Colors.transparent),
-          width: detectedEvent != null ? 1.5 : 1,
+                  ? const Color(0xFFF43F5E)
+                  : genderColor.withValues(alpha: 0.6)),
+          width: 1.5,
         ),
       ),
       child: InkWell(
@@ -447,10 +462,10 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: detectedEvent != null
-                        ? const Color(0xFF38BDF8)
+                        ? const Color(0xFFF59E0B)
                         : (isHighMatch
-                            ? const Color(0xFF10B981).withValues(alpha: 0.7)
-                            : const Color(0xFF3B82F6).withValues(alpha: 0.5)),
+                            ? const Color(0xFF10B981)
+                            : genderColor),
                     width: 2,
                   ),
                 ),
@@ -548,15 +563,19 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                            color: genderColor.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: genderColor.withValues(alpha: 0.4),
+                              width: 0.8,
+                            ),
                           ),
                           child: Text(
                             profile.gender.isEmpty ? 'Soul' : profile.gender,
-                            style: const TextStyle(
-                              color: Color(0xFF38BDF8),
+                            style: TextStyle(
+                              color: genderColor,
                               fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
