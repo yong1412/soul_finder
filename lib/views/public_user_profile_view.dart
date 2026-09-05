@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../models/interest_data.dart';
 import '../services/match_service.dart';
 import '../services/profile_stats_service.dart';
 import '../services/report_service.dart';
@@ -397,51 +398,89 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
             ),
           ),
           const SizedBox(height: 16),
-          _ProfileSection(
-            title: 'Interests',
-            child: profile.interests.isEmpty
-                ? const Text(
-              'No interests added yet.',
-              style: TextStyle(color: Colors.white60),
-            )
-                : Wrap(
-              spacing: 9,
-              runSpacing: 9,
-              children: profile.interests
-                  .map(
-                    (interest) => Chip(
-                  avatar: Icon(
-                    candidate.commonInterests.any(
-                          (item) =>
-                      item.toLowerCase() ==
-                          interest.toLowerCase(),
-                    )
-                        ? Icons.favorite
-                        : Icons.tag,
-                    size: 16,
-                    color: candidate.commonInterests.any(
-                          (item) =>
-                      item.toLowerCase() ==
-                          interest.toLowerCase(),
-                    )
-                        ? const Color(0xFFF43F5E)
-                        : Colors.white54,
-                  ),
-                  label: Text(interest),
-                  backgroundColor: const Color(0xFF273449),
-                  side: BorderSide.none,
+
+          // Interests Card (Styled identically to UserDashboardView My Profile)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.interests_outlined,
+                      color: Color(0xFF3B82F6),
+                    ),
+                    SizedBox(width: 10),
+                    Text(
+                      'Interests',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-              )
-                  .toList(),
+                const SizedBox(height: 12),
+                profile.interests.isEmpty
+                    ? const Text(
+                        'No interests added yet.',
+                        style: TextStyle(color: Colors.white38, fontSize: 13),
+                      )
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: profile.interests.map((rawInterest) {
+                          final isCommon = candidate.commonInterests.any(
+                            (item) => item.toLowerCase() == rawInterest.toLowerCase(),
+                          );
+                          final label = InterestData.getLabel(rawInterest);
+
+                          return Chip(
+                            avatar: Icon(
+                              isCommon ? Icons.favorite : Icons.tag,
+                              size: 14,
+                              color: isCommon ? const Color(0xFFF43F5E) : const Color(0xFF38BDF8),
+                            ),
+                            label: Text(
+                              label,
+                              style: TextStyle(
+                                color: isCommon ? const Color(0xFFF43F5E) : Colors.white,
+                                fontWeight: isCommon ? FontWeight.bold : FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                            backgroundColor: isCommon
+                                ? const Color(0xFFF43F5E).withValues(alpha: 0.15)
+                                : const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                            side: BorderSide(
+                              color: isCommon
+                                  ? const Color(0xFFF43F5E).withValues(alpha: 0.4)
+                                  : const Color(0xFF3B82F6).withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                if (candidate.commonInterests.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    '❤️ Pink heart badges mark interests you both share in common!',
+                    style: TextStyle(color: Color(0xFFF43F5E), fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (candidate.commonInterests.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text(
-              'The heart icon marks an interest you both share.',
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ],
           const SizedBox(height: 16),
           const Card(
             color: Color(0xFF1E293B),
