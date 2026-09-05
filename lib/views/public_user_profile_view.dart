@@ -288,7 +288,7 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
             ),
           ],
           const SizedBox(height: 20),
-          // Dedicated "About Me" Card
+          // Dedicated "Bio" Card
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -311,7 +311,7 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'About Me',
+                  'Bio',
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,

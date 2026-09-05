@@ -107,6 +107,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
   Widget _buildFilterChip(String key, String label, IconData icon, Color themeColor) {
     final isSelected = _activeFilter == key;
     return ChoiceChip(
+      showCheckmark: false,
       avatar: Icon(
         icon,
         size: 16,

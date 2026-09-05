@@ -770,11 +770,6 @@ class UserDashboardView extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Dedicated "About Me" Card
-          _buildAboutMeCard(user, theme, context),
-
-          const SizedBox(height: 20),
-
           // Height & Weight Card (if specified)
           if (user.heightCm != null || user.weightKg != null) ...[
             Container(
@@ -1022,51 +1017,5 @@ class UserDashboardView extends StatelessWidget {
     );
   }
 
-  Widget _buildAboutMeCard(UserProfile user, ColorScheme theme, BuildContext context) {
-    final bioText = user.bio.trim().isEmpty
-        ? 'Passionate about exploring new places, meeting like-minded souls, and enjoying genuine conversations.'
-        : user.bio.trim();
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: theme.primary.withValues(alpha: 0.25),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'About Me',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            bioText,
-            style: const TextStyle(
-              fontSize: 15,
-              height: 1.5,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
