@@ -230,6 +230,11 @@ class AuthService {
         'hideOnlineStatus': updatedProfile.hideOnlineStatus,
         'heightCm': updatedProfile.heightCm,
         'weightKg': updatedProfile.weightKg,
+        'isPrivateProfile': updatedProfile.isPrivateProfile,
+        'hideBio': updatedProfile.hideBio,
+        'hideStats': updatedProfile.hideStats,
+        'hideInterests': updatedProfile.hideInterests,
+        'hideAgeGender': updatedProfile.hideAgeGender,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -239,6 +244,35 @@ class AuthService {
         error.message ??
             'Unable to update profile.',
       );
+    }
+  }
+
+  Future<UserProfile> updateProfilePrivacy({
+    required bool isPrivateProfile,
+    required bool hideBio,
+    required bool hideStats,
+    required bool hideInterests,
+    required bool hideAgeGender,
+  }) async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw const AuthException('You are not signed in.');
+    }
+
+    try {
+      await _users.doc(firebaseUser.uid).set({
+        'isPrivateProfile': isPrivateProfile,
+        'hideBio': hideBio,
+        'hideStats': hideStats,
+        'hideInterests': hideInterests,
+        'hideAgeGender': hideAgeGender,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final doc = await _users.doc(firebaseUser.uid).get();
+      return UserProfile.fromJson(doc.data()!);
+    } on FirebaseException catch (error) {
+      throw AuthException(error.message ?? 'Unable to update profile privacy settings.');
     }
   }
 

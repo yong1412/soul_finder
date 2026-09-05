@@ -24,6 +24,11 @@ class UserProfile {
     this.weightKg,
     this.latitude,
     this.longitude,
+    this.isPrivateProfile = false,
+    this.hideBio = false,
+    this.hideStats = false,
+    this.hideInterests = false,
+    this.hideAgeGender = false,
   });
 
   final String uid;
@@ -47,10 +52,23 @@ class UserProfile {
   final double? latitude;
   final double? longitude;
 
+  // Profile Privacy Controls
+  final bool isPrivateProfile; // Master toggle to hide all profile details
+  final bool hideBio;
+  final bool hideStats; // Height & Weight
+  final bool hideInterests;
+  final bool hideAgeGender;
+
   bool get hasLocation => latitude != null && longitude != null;
 
   /// Public online status visible to others (Hidden if user activated hideOnlineStatus)
   bool get isPubliclyOnline => isOnline && !hideOnlineStatus;
+
+  /// Privacy helper getters
+  bool get shouldHideBio => isPrivateProfile || hideBio;
+  bool get shouldHideStats => isPrivateProfile || hideStats;
+  bool get shouldHideInterests => isPrivateProfile || hideInterests;
+  bool get shouldHideAgeGender => isPrivateProfile || hideAgeGender;
 
   /// Check if user is currently banned for 3 days due to 10+ reports from 3+ reporters
   bool get isBanned {
@@ -107,6 +125,11 @@ class UserProfile {
       weightKg: (json['weightKg'] as num?)?.toDouble(),
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
+      isPrivateProfile: json['isPrivateProfile'] as bool? ?? false,
+      hideBio: json['hideBio'] as bool? ?? false,
+      hideStats: json['hideStats'] as bool? ?? false,
+      hideInterests: json['hideInterests'] as bool? ?? false,
+      hideAgeGender: json['hideAgeGender'] as bool? ?? false,
     );
   }
 
@@ -132,6 +155,11 @@ class UserProfile {
       if (weightKg != null) 'weightKg': weightKg,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      'isPrivateProfile': isPrivateProfile,
+      'hideBio': hideBio,
+      'hideStats': hideStats,
+      'hideInterests': hideInterests,
+      'hideAgeGender': hideAgeGender,
     };
   }
 
@@ -156,6 +184,11 @@ class UserProfile {
     double? weightKg,
     double? latitude,
     double? longitude,
+    bool? isPrivateProfile,
+    bool? hideBio,
+    bool? hideStats,
+    bool? hideInterests,
+    bool? hideAgeGender,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -179,6 +212,11 @@ class UserProfile {
       weightKg: weightKg ?? this.weightKg,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      isPrivateProfile: isPrivateProfile ?? this.isPrivateProfile,
+      hideBio: hideBio ?? this.hideBio,
+      hideStats: hideStats ?? this.hideStats,
+      hideInterests: hideInterests ?? this.hideInterests,
+      hideAgeGender: hideAgeGender ?? this.hideAgeGender,
     );
   }
 }

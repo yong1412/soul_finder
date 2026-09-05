@@ -103,6 +103,24 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  Future<bool> updateProfilePrivacy({
+    required bool isPrivateProfile,
+    required bool hideBio,
+    required bool hideStats,
+    required bool hideInterests,
+    required bool hideAgeGender,
+  }) async {
+    return _execute(() async {
+      _currentUser = await _service.updateProfilePrivacy(
+        isPrivateProfile: isPrivateProfile,
+        hideBio: hideBio,
+        hideStats: hideStats,
+        hideInterests: hideInterests,
+        hideAgeGender: hideAgeGender,
+      );
+    });
+  }
+
   Future<bool> setRadarMode(String modeStr) async {
     return _execute(() async {
       _currentUser = await _service.setRadarMode(modeStr);

@@ -26,6 +26,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
 
   // Mode filter: 'ALL' (All Souls - Privacy Protected), 'RADAR' (Radar Range 200m + Event Souls)
   String _activeFilter = 'ALL';
+  bool _isSwitchingMode = false;
   Timer? _autoRefreshTimer; // Timer for auto-refreshing All Souls every 3 minutes
 
   @override
@@ -93,9 +94,11 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
               ),
             ),
 
-            // 2. Main Content View with BLAZING FAST 0ms Instant Transition
+            // 2. Main Content View with Smooth Privacy Transition
             Expanded(
-              child: _buildSoulsView(radiusMeters, themeColor, currentRadarMode),
+              child: _isSwitchingMode
+                  ? _buildSwitchingLoadingView(themeColor)
+                  : _buildSoulsView(radiusMeters, themeColor, currentRadarMode),
             ),
           ],
         );
@@ -103,7 +106,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     );
   }
 
-  /// Filter Chip with Instant 0ms Transition & Dynamic Mode Color
+  /// Filter Chip with Privacy Transition & Dynamic Mode Color
   Widget _buildFilterChip(String key, String label, IconData icon, Color themeColor) {
     final isSelected = _activeFilter == key;
     return ChoiceChip(
@@ -115,11 +118,21 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
       ),
       label: Text(label),
       selected: isSelected,
-      onSelected: (selected) {
-        if (selected && _activeFilter != key) {
+      onSelected: (selected) async {
+        if (selected && _activeFilter != key && !_isSwitchingMode) {
           setState(() {
-            _activeFilter = key; // 🚀 Instant 0ms Switch!
+            _isSwitchingMode = true;
           });
+
+          // 🛡️ Privacy Transition Delay: Mask data briefly while switching rules
+          await Future.delayed(const Duration(milliseconds: 650));
+
+          if (mounted) {
+            setState(() {
+              _activeFilter = key;
+              _isSwitchingMode = false;
+            });
+          }
         }
       },
       selectedColor: themeColor,
@@ -135,6 +148,53 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
         color: isSelected ? Colors.white : const Color(0xFFCBD5E1),
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         fontSize: 13,
+      ),
+    );
+  }
+
+  /// Privacy Loading View shown during mode transition
+  Widget _buildSwitchingLoadingView(Color themeColor) {
+    final isGoingToRadar = _activeFilter == 'ALL'; // currently ALL, going to RADAR
+    final targetTitle = isGoingToRadar ? 'Scanning Radar Range...' : 'Loading All Souls...';
+
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: themeColor,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            targetTitle,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white70,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.shield_outlined, size: 14, color: Colors.white38),
+              SizedBox(width: 6),
+              Text(
+                'Applying privacy & distance rules',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white38,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

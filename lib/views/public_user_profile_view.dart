@@ -162,9 +162,9 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
     final candidate = widget.candidate;
     final profile = candidate.profile;
     final profileImage = _decodeProfileImage(profile.profileImageBase64);
-    final displayName = profile.age > 0
-        ? '${profile.name}, ${profile.age}'
-        : profile.name;
+    final displayName = profile.shouldHideAgeGender
+        ? profile.name
+        : (profile.age > 0 ? '${profile.name}, ${profile.age}' : profile.name);
     final isHighMatch = candidate.compatibilityScore >= 80;
     final distanceText = candidate.distanceKm == null
         ? 'Unavailable'
@@ -259,6 +259,34 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
               ),
             ],
           ),
+          if (profile.isPrivateProfile) ...[
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF818CF8).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF818CF8).withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline, color: Color(0xFF818CF8), size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Private Profile Mode Active',
+                      style: TextStyle(
+                        color: Color(0xFF818CF8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           if (profile.isSuspended) ...[
             const SizedBox(height: 10),
             Center(
@@ -321,13 +349,16 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  profile.bio.trim().isEmpty
-                      ? 'Passionate about exploring new places, meeting like-minded souls, and enjoying genuine conversations.'
-                      : profile.bio.trim(),
-                  style: const TextStyle(
+                  profile.shouldHideBio
+                      ? '🔒 Bio is set to private.'
+                      : (profile.bio.trim().isEmpty
+                          ? 'Passionate about exploring new places, meeting like-minded souls, and enjoying genuine conversations.'
+                          : profile.bio.trim()),
+                  style: TextStyle(
                     fontSize: 15,
                     height: 1.5,
-                    color: Colors.white,
+                    color: profile.shouldHideBio ? Colors.white54 : Colors.white,
+                    fontStyle: profile.shouldHideBio ? FontStyle.italic : FontStyle.normal,
                   ),
                 ),
               ],
@@ -374,11 +405,11 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                 _InformationRow(
                   icon: Icons.person_outline,
                   label: 'Gender',
-                  value: profile.gender.trim().isEmpty
-                      ? 'Not specified'
-                      : profile.gender,
+                  value: profile.shouldHideAgeGender
+                      ? '🔒 Private'
+                      : (profile.gender.trim().isEmpty ? 'Not specified' : profile.gender),
                 ),
-                if (profile.heightCm != null) ...[
+                if (!profile.shouldHideStats && profile.heightCm != null) ...[
                   const SizedBox(height: 14),
                   _InformationRow(
                     icon: Icons.height,
@@ -386,7 +417,7 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                     value: '${profile.heightCm!.toStringAsFixed(0)} cm',
                   ),
                 ],
-                if (profile.weightKg != null) ...[
+                if (!profile.shouldHideStats && profile.weightKg != null) ...[
                   const SizedBox(height: 14),
                   _InformationRow(
                     icon: Icons.monitor_weight_outlined,
@@ -428,49 +459,54 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                profile.interests.isEmpty
+                profile.shouldHideInterests
                     ? const Text(
-                        'No interests added yet.',
-                        style: TextStyle(color: Colors.white38, fontSize: 13),
+                        '🔒 Interests are set to private.',
+                        style: TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic),
                       )
-                    : Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: profile.interests.map((rawInterest) {
-                          final isCommon = candidate.commonInterests.any(
-                            (item) => item.toLowerCase() == rawInterest.toLowerCase(),
-                          );
-                          final label = InterestData.getLabel(rawInterest);
+                    : (profile.interests.isEmpty
+                        ? const Text(
+                            'No interests added yet.',
+                            style: TextStyle(color: Colors.white38, fontSize: 13),
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: profile.interests.map((rawInterest) {
+                              final isCommon = candidate.commonInterests.any(
+                                (item) => item.toLowerCase() == rawInterest.toLowerCase(),
+                              );
+                              final label = InterestData.getLabel(rawInterest);
 
-                          return Chip(
-                            avatar: Icon(
-                              isCommon ? Icons.favorite : Icons.tag,
-                              size: 14,
-                              color: isCommon ? const Color(0xFFF43F5E) : const Color(0xFF38BDF8),
-                            ),
-                            label: Text(
-                              label,
-                              style: TextStyle(
-                                color: isCommon ? const Color(0xFFF43F5E) : Colors.white,
-                                fontWeight: isCommon ? FontWeight.bold : FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                            backgroundColor: isCommon
-                                ? const Color(0xFFF43F5E).withValues(alpha: 0.15)
-                                : const Color(0xFF3B82F6).withValues(alpha: 0.12),
-                            side: BorderSide(
-                              color: isCommon
-                                  ? const Color(0xFFF43F5E).withValues(alpha: 0.4)
-                                  : const Color(0xFF3B82F6).withValues(alpha: 0.3),
-                              width: 1,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          );
-                        }).toList(),
-                      ),
+                              return Chip(
+                                avatar: Icon(
+                                  isCommon ? Icons.favorite : Icons.tag,
+                                  size: 14,
+                                  color: isCommon ? const Color(0xFFF43F5E) : const Color(0xFF38BDF8),
+                                ),
+                                label: Text(
+                                  label,
+                                  style: TextStyle(
+                                    color: isCommon ? const Color(0xFFF43F5E) : Colors.white,
+                                    fontWeight: isCommon ? FontWeight.bold : FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                backgroundColor: isCommon
+                                    ? const Color(0xFFF43F5E).withValues(alpha: 0.15)
+                                    : const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                                side: BorderSide(
+                                  color: isCommon
+                                      ? const Color(0xFFF43F5E).withValues(alpha: 0.4)
+                                      : const Color(0xFF3B82F6).withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              );
+                            }).toList(),
+                          )),
                 if (candidate.commonInterests.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Text(

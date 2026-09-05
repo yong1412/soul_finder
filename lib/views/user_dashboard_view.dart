@@ -441,6 +441,209 @@ class UserDashboardView extends StatelessWidget {
     );
   }
 
+  Future<void> _showPrivacySettingsModal(
+      BuildContext context,
+      UserProfile user,
+      ) async {
+    bool isPrivate = user.isPrivateProfile;
+    bool hideBio = user.hideBio;
+    bool hideStats = user.hideStats;
+    bool hideInterests = user.hideInterests;
+    bool hideAgeGender = user.hideAgeGender;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.lock_person_outlined,
+                          color: Color(0xFFF43F5E),
+                          size: 24,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          'Profile Privacy Settings',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Choose whether to hide specific details or activate Full Private Mode.',
+                      style: TextStyle(color: Colors.white60, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Master Toggle
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isPrivate
+                            ? const Color(0xFFF43F5E).withValues(alpha: 0.15)
+                            : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isPrivate
+                              ? const Color(0xFFF43F5E).withValues(alpha: 0.4)
+                              : Colors.white10,
+                        ),
+                      ),
+                      child: SwitchListTile(
+                        value: isPrivate,
+                        activeThumbColor: const Color(0xFFF43F5E),
+                        title: const Text(
+                          '🔒 Full Private Mode (Hide Everything)',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: const Text(
+                          'Hides Bio, Height/Weight, Interests & Age from public view at once.',
+                          style: TextStyle(fontSize: 12, color: Colors.white60),
+                        ),
+                        onChanged: (val) {
+                          setModalState(() {
+                            isPrivate = val;
+                          });
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Custom Granular Privacy Controls',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Granular Field Controls
+                    Opacity(
+                      opacity: isPrivate ? 0.4 : 1.0,
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            title: const Text('Hide Bio'),
+                            subtitle: const Text('Do not show your bio statement to public viewers'),
+                            value: isPrivate || hideBio,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideBio = val);
+                                  },
+                          ),
+                          SwitchListTile(
+                            title: const Text('Hide Height & Weight'),
+                            subtitle: const Text('Do not show body stats on public profile'),
+                            value: isPrivate || hideStats,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideStats = val);
+                                  },
+                          ),
+                          SwitchListTile(
+                            title: const Text('Hide Interests'),
+                            subtitle: const Text('Do not display interest badges to public viewers'),
+                            value: isPrivate || hideInterests,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideInterests = val);
+                                  },
+                          ),
+                          SwitchListTile(
+                            title: const Text('Hide Age & Gender'),
+                            subtitle: const Text('Hide age and gender from public profile'),
+                            value: isPrivate || hideAgeGender,
+                            onChanged: isPrivate
+                                ? null
+                                : (val) {
+                                    setModalState(() => hideAgeGender = val);
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(modalContext);
+                          final success = await controller.updateProfilePrivacy(
+                            isPrivateProfile: isPrivate,
+                            hideBio: hideBio,
+                            hideStats: hideStats,
+                            hideInterests: hideInterests,
+                            hideAgeGender: hideAgeGender,
+                          );
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? 'Profile privacy settings updated.'
+                                      : 'Failed to update privacy settings.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Save Privacy Settings'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF3B82F6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openEditProfile(
       BuildContext context,
       ) async {
@@ -967,6 +1170,48 @@ class UserDashboardView extends StatelessWidget {
                   onChanged: (hide) async {
                     await controller.setHideOnlineStatus(hide);
                   },
+                ),
+
+                Divider(
+                  color: Colors.white.withValues(
+                    alpha: 0.05,
+                  ),
+                  height: 1,
+                ),
+
+                // 🔒 Profile Private Mode Settings
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: user.isPrivateProfile
+                          ? const Color(0xFFF43F5E).withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.06),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.lock_person_outlined,
+                      color: user.isPrivateProfile ? const Color(0xFFF43F5E) : Colors.white70,
+                    ),
+                  ),
+                  title: Text(
+                    'Profile Privacy & Private Mode',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: user.isPrivateProfile ? const Color(0xFFF43F5E) : Colors.white,
+                    ),
+                  ),
+                  subtitle: Text(
+                    user.isPrivateProfile
+                        ? 'Master Private Mode Active • All optional details hidden'
+                        : 'Choose specific details to hide or hide everything',
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.tune_outlined,
+                    color: Colors.white54,
+                  ),
+                  onTap: () => _showPrivacySettingsModal(context, user),
                 ),
 
                 Divider(
