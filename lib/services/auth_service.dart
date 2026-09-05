@@ -32,6 +32,8 @@ class AuthService {
     required String gender,
     required String lookingFor,
     required List<String> interests,
+    double? heightCm,
+    double? weightKg,
   }) async {
     try {
       final normalizedEmail =
@@ -62,6 +64,8 @@ class AuthService {
         lookingFor: lookingFor,
         discoveryRadius: 0.2,
         profileImageBase64: '',
+        heightCm: heightCm,
+        weightKg: weightKg,
       );
 
       await _users.doc(firebaseUser.uid).set({
@@ -75,6 +79,8 @@ class AuthService {
         'lookingFor': lookingFor,
         'discoveryRadius': 0.2,
         'profileImageBase64': '',
+        if (heightCm != null) 'heightCm': heightCm,
+        if (weightKg != null) 'weightKg': weightKg,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });

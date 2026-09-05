@@ -59,6 +59,8 @@ class AuthController extends ChangeNotifier {
     required String gender,
     required String lookingFor,
     required List<String> interests,
+    double? heightCm,
+    double? weightKg,
   }) async {
     return _execute(() async {
       _currentUser = await _service.register(
@@ -69,6 +71,8 @@ class AuthController extends ChangeNotifier {
         gender: gender,
         lookingFor: lookingFor,
         interests: interests,
+        heightCm: heightCm,
+        weightKg: weightKg,
       );
     });
   }

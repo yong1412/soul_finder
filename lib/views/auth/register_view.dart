@@ -21,6 +21,8 @@ class _RegisterViewState extends State<RegisterView> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _ageController = TextEditingController();
+  final _heightController = TextEditingController();
+  final _weightController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -44,6 +46,8 @@ class _RegisterViewState extends State<RegisterView> {
     _nameController.dispose();
     _emailController.dispose();
     _ageController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -63,11 +67,16 @@ class _RegisterViewState extends State<RegisterView> {
       return;
     }
 
+    final heightVal = double.tryParse(_heightController.text.trim());
+    final weightVal = double.tryParse(_weightController.text.trim());
+
     final success = await widget.controller.register(
       email: _emailController.text.trim(),
       password: _passwordController.text,
       name: _nameController.text.trim(),
       age: int.parse(_ageController.text.trim()),
+      heightCm: heightVal,
+      weightKg: weightVal,
       gender: _gender,
       lookingFor: 'Both',
       interests: _selectedInterests.map((label) => InterestData.getId(label)).toList(),
@@ -206,6 +215,57 @@ class _RegisterViewState extends State<RegisterView> {
 
                             return null;
                           },
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // Height & Weight Row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _heightController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: _inputDecoration(
+                                  label: 'Height (cm)',
+                                  icon: Icons.height,
+                                ),
+                                validator: (value) {
+                                  final trimmed = value?.trim() ?? '';
+                                  if (trimmed.isEmpty) {
+                                    return 'Enter height';
+                                  }
+                                  final height = double.tryParse(trimmed);
+                                  if (height == null || height < 50 || height > 250) {
+                                    return '50-250 cm';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _weightController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: _inputDecoration(
+                                  label: 'Weight (kg)',
+                                  icon: Icons.monitor_weight_outlined,
+                                ),
+                                validator: (value) {
+                                  final trimmed = value?.trim() ?? '';
+                                  if (trimmed.isEmpty) {
+                                    return 'Enter weight';
+                                  }
+                                  final weight = double.tryParse(trimmed);
+                                  if (weight == null || weight < 20 || weight > 300) {
+                                    return '20-300 kg';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 14),
