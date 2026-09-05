@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../../models/radar/radar_models.dart';
+
+import 'package:soul_finder/models/radar/radar_models.dart';
 
 class TransportService {
   // Replace with your actual Google Maps API Key

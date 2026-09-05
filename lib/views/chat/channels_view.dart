@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import '../../controllers/auth_controller.dart';
-import '../../models/channel.dart';
-import '../../models/event_hotspot.dart';
-import '../../services/channel_service.dart';
-import '../../services/event_hotspot_service.dart';
-import '../../widgets/marquee_text.dart';
-import '../channel_conversation_view.dart';
-import '../station_map_view.dart';
+
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/models/chat/channel.dart';
+import 'package:soul_finder/models/meet/event_hotspot.dart';
+import 'package:soul_finder/services/chat/channel_service.dart';
+import 'package:soul_finder/services/meet/event_hotspot_service.dart';
+import 'package:soul_finder/widgets/marquee_text.dart';
+import 'package:soul_finder/views/chat/channel_conversation_view.dart';
+import 'package:soul_finder/views/meet/station_map_view.dart';
 
 class ChannelsView extends StatefulWidget {
   const ChannelsView({

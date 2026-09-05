@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../services/chat_service.dart';
-import '../../services/match_service.dart';
-import '../chat_conversation_view.dart';
+
+import 'package:soul_finder/services/chat/chat_service.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/views/chat/chat_conversation_view.dart';
 
 class DirectMessagesView extends StatefulWidget {
   const DirectMessagesView({super.key});

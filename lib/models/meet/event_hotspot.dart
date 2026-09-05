@@ -1,4 +1,4 @@
-import 'radar/radar_models.dart';
+import 'package:soul_finder/models/radar/radar_models.dart';
 
 class EventHotspot {
   final String id;

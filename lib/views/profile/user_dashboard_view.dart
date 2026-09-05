@@ -2,14 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../controllers/auth_controller.dart';
-import '../models/interest_data.dart';
-import '../models/user_profile.dart';
-import '../services/match_service.dart';
-import '../services/profile_stats_service.dart';
-import 'chat_list_view.dart';
-import 'nearby_users_list_view.dart';
-import 'profile/edit_profile_view.dart';
+import '../../controllers/auth_controller.dart';
+import '../../models/interest_data.dart';
+import '../../models/user_profile.dart';
+import '../../services/match/match_service.dart';
+import '../../services/match/profile_stats_service.dart';
+import '../chat/chat_list_view.dart';
+import '../discovery/nearby_users_list_view.dart';
+import 'edit_profile_view.dart';
 import 'profile_viewers_view.dart';
 
 class UserDashboardView extends StatelessWidget {

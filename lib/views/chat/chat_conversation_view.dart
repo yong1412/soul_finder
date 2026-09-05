@@ -5,13 +5,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../models/chat_message.dart';
-import '../services/chat_service.dart';
-import '../services/cloudinary_service.dart';
-import '../services/match_service.dart';
-import '../services/report_service.dart';
+import '../../models/chat/chat_message.dart';
+import '../../services/chat/chat_service.dart';
+import '../../services/chat/cloudinary_service.dart';
+import '../../services/match/match_service.dart';
+import '../../services/match/report_service.dart';
 import 'full_screen_image_view.dart';
-import 'public_user_profile_view.dart';
+import '../profile/public_user_profile_view.dart';
 import 'video_player_view.dart';
 
 class ChatConversationView extends StatefulWidget {

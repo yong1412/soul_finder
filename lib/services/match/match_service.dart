@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../models/event_hotspot.dart';
-import '../models/user_profile.dart';
+import 'package:soul_finder/models/meet/event_hotspot.dart';
+import 'package:soul_finder/models/user_profile.dart';
 
 class MatchCandidate {
   const MatchCandidate({

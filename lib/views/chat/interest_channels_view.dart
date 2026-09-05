@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../controllers/auth_controller.dart';
-import '../../models/channel.dart';
-import '../../services/channel_service.dart';
-import '../channel_conversation_view.dart';
+
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/models/chat/channel.dart';
+import 'package:soul_finder/services/chat/channel_service.dart';
+import 'package:soul_finder/views/chat/channel_conversation_view.dart';
 
 class InterestChannelsView extends StatefulWidget {
   const InterestChannelsView({

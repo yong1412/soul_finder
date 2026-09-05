@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../models/meeting_venue.dart';
-import '../services/chat_service.dart';
-import '../services/match_service.dart';
-import '../services/venue_service.dart';
-import '../widgets/match_meeting_map.dart';
+import 'package:soul_finder/models/meet/meeting_venue.dart';
+import 'package:soul_finder/services/chat/chat_service.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/services/meet/venue_service.dart';
+import 'package:soul_finder/widgets/match_meeting_map.dart';
 
 class MeetSoulView extends StatefulWidget {
   const MeetSoulView({

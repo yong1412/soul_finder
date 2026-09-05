@@ -5,13 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import '../models/event_hotspot.dart';
-import '../models/user_profile.dart';
-import '../services/event_hotspot_service.dart';
-import '../services/match_service.dart';
-import '../widgets/marquee_text.dart';
-import 'chat_conversation_view.dart';
-import 'public_user_profile_view.dart';
+
+import 'package:soul_finder/models/meet/event_hotspot.dart';
+import 'package:soul_finder/models/user_profile.dart';
+import 'package:soul_finder/services/meet/event_hotspot_service.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/widgets/marquee_text.dart';
+import 'package:soul_finder/views/chat/chat_conversation_view.dart';
+import 'package:soul_finder/views/profile/public_user_profile_view.dart';
 
 class NearbyUsersListView extends StatefulWidget {
   const NearbyUsersListView({super.key});

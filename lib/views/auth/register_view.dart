@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/auth_controller.dart';
-import '../../models/interest_data.dart';
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/models/interest_data.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({

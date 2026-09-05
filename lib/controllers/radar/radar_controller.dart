@@ -4,10 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../models/radar/radar_models.dart';
-import '../../services/event_hotspot_service.dart';
-import '../../services/radar/location_service.dart';
-import '../../services/radar/transport_service.dart';
+
+import 'package:soul_finder/models/radar/radar_models.dart';
+import 'package:soul_finder/services/meet/event_hotspot_service.dart';
+import 'package:soul_finder/services/radar/location_service.dart';
+import 'package:soul_finder/services/radar/transport_service.dart';
 
 class RadarController extends ChangeNotifier {
   RadarController({

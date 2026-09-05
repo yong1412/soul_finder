@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/user_profile.dart';
-import '../services/auth_service.dart';
+import 'package:soul_finder/models/user_profile.dart';
+import 'package:soul_finder/services/auth_service.dart';
 
 class AuthController extends ChangeNotifier {
   AuthController(this._service);

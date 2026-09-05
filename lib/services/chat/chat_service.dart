@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../models/chat_message.dart';
-import '../models/meeting_venue.dart';
+import 'package:soul_finder/models/chat/chat_message.dart';
+import 'package:soul_finder/models/meet/meeting_venue.dart';
 
 class ChatPreview {
   const ChatPreview({

@@ -1,12 +1,10 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../controllers/auth_controller.dart';
-import '../../models/interest_data.dart';
+import 'package:soul_finder/controllers/auth_controller.dart';
 
 class EditProfileView extends StatefulWidget {
   const EditProfileView({

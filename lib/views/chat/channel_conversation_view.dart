@@ -2,14 +2,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:media_kit/media_kit.dart';
-import '../models/channel.dart';
-import '../services/channel_service.dart';
-import '../services/cloudinary_service.dart';
-import '../services/match_service.dart';
-import '../controllers/auth_controller.dart';
-import 'full_screen_image_view.dart';
-import 'public_user_profile_view.dart';
-import 'video_player_view.dart';
+
+import 'package:soul_finder/models/chat/channel.dart';
+import 'package:soul_finder/services/chat/channel_service.dart';
+import 'package:soul_finder/services/chat/cloudinary_service.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/views/chat/full_screen_image_view.dart';
+import 'package:soul_finder/views/profile/public_user_profile_view.dart';
+import 'package:soul_finder/views/chat/video_player_view.dart';
 
 class ChannelConversationView extends StatefulWidget {
   const ChannelConversationView({

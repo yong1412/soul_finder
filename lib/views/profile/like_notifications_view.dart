@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 
 import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 
-import '../models/event_hotspot.dart';
-import '../services/event_hotspot_service.dart';
-import '../services/match_service.dart';
-import 'chat_conversation_view.dart';
-import 'meet_soul_view.dart';
-import 'public_user_profile_view.dart';
-import 'station_map_view.dart';
+import 'package:soul_finder/models/meet/event_hotspot.dart';
+import 'package:soul_finder/services/meet/event_hotspot_service.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/views/chat/chat_conversation_view.dart';
+import 'package:soul_finder/views/meet/meet_soul_view.dart';
+import 'package:soul_finder/views/profile/public_user_profile_view.dart';
+import 'package:soul_finder/views/meet/station_map_view.dart';
 
 class LikeNotificationsView extends StatefulWidget {
   const LikeNotificationsView({super.key});

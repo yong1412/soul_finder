@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../models/meeting_venue.dart';
-import '../services/match_service.dart';
+import 'package:soul_finder/models/meet/meeting_venue.dart';
+import 'package:soul_finder/services/match/match_service.dart';
 
 class MatchMeetingMap extends StatefulWidget {
   const MatchMeetingMap({

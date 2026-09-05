@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../models/radar/radar_models.dart';
+
+import 'package:soul_finder/models/radar/radar_models.dart';
 
 class RadarPainter extends CustomPainter {
   final double progress;

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/report_service.dart';
+
+import 'package:soul_finder/services/match/report_service.dart';
 
 class UserProfile {
   const UserProfile({

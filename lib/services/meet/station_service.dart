@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../models/radar/radar_models.dart';
+
+import 'package:soul_finder/models/radar/radar_models.dart';
 
 /// 专职负责加载与解析 Malaysia 轨道交通（LRT/MRT）静态车站数据的服务类
 class StationService {

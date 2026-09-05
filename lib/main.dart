@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:media_kit/media_kit.dart';
+
+import 'package:soul_finder/firebase_options.dart';
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/controllers/radar/radar_controller.dart';
+import 'package:soul_finder/services/auth_service.dart';
+import 'package:soul_finder/services/chat/channel_service.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/services/radar/location_service.dart';
+import 'package:soul_finder/views/auth/login_view.dart';
+import 'package:soul_finder/views/auth/banned_account_view.dart';
+import 'package:soul_finder/views/chat/chat_list_view.dart';
+import 'package:soul_finder/views/profile/like_notifications_view.dart';
+import 'package:soul_finder/views/discovery/nearby_users_list_view.dart';
+import 'package:soul_finder/views/splash_loading_view.dart';
+import 'package:soul_finder/views/profile/user_dashboard_view.dart';
 import 'package:soul_finder/views/radar/radar_view.dart';
-
-import 'firebase_options.dart';
-
-import 'controllers/auth_controller.dart';
-import 'controllers/radar/radar_controller.dart';
-import 'services/auth_service.dart';
-import 'services/channel_service.dart';
-import 'services/match_service.dart';
-import 'services/radar/location_service.dart';
-import 'views/auth/login_view.dart';
-import 'views/banned_account_view.dart';
-import 'views/chat_list_view.dart';
-import 'views/like_notifications_view.dart';
-import 'views/nearby_users_list_view.dart';
-import 'views/splash_loading_view.dart';
-import 'views/user_dashboard_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

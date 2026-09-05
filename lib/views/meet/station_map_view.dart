@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../models/event_hotspot.dart';
-import '../models/radar/radar_models.dart';
-import '../services/event_hotspot_service.dart';
-import '../services/station_service.dart';
-import '../widgets/marquee_text.dart';
+
+import 'package:soul_finder/models/meet/event_hotspot.dart';
+import 'package:soul_finder/models/radar/radar_models.dart';
+import 'package:soul_finder/services/meet/event_hotspot_service.dart';
+import 'package:soul_finder/services/meet/station_service.dart';
+import 'package:soul_finder/widgets/marquee_text.dart';
 
 /// Transit Stations & Event Hotspots Map View
 class StationMapView extends StatefulWidget {

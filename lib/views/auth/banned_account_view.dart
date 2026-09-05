@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../models/user_profile.dart';
-import '../controllers/auth_controller.dart';
+
+import 'package:soul_finder/models/user_profile.dart';
+import 'package:soul_finder/controllers/auth_controller.dart';
 
 class BannedAccountView extends StatelessWidget {
   const BannedAccountView({

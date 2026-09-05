@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
-import '../models/user_profile.dart';
+import 'package:soul_finder/models/user_profile.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -79,8 +79,8 @@ class AuthService {
         'lookingFor': lookingFor,
         'discoveryRadius': 0.2,
         'profileImageBase64': '',
-        if (heightCm != null) 'heightCm': heightCm,
-        if (weightKg != null) 'weightKg': weightKg,
+        'heightCm': ?heightCm,
+        'weightKg': ?weightKg,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });

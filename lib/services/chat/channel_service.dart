@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import '../models/channel.dart';
-import '../models/interest_data.dart';
+
+import 'package:soul_finder/models/chat/channel.dart';
+import 'package:soul_finder/models/interest_data.dart';
 
 class ChannelService {
   ChannelService({

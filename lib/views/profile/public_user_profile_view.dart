@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../models/interest_data.dart';
-import '../services/match_service.dart';
-import '../services/profile_stats_service.dart';
-import '../services/report_service.dart';
-import 'chat_conversation_view.dart';
-import 'meet_soul_view.dart';
+import 'package:soul_finder/models/interest_data.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/services/match/profile_stats_service.dart';
+import 'package:soul_finder/services/match/report_service.dart';
+import 'package:soul_finder/views/chat/chat_conversation_view.dart';
+import 'package:soul_finder/views/meet/meet_soul_view.dart';
 
 class PublicUserProfileView extends StatefulWidget {
   const PublicUserProfileView({

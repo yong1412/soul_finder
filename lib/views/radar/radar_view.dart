@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../../controllers/radar/radar_controller.dart';
-import '../../controllers/auth_controller.dart';
-import '../../models/radar/radar_models.dart';
-import '../../services/match_service.dart';
-import '../../services/radar/geocoding_service.dart';
-import '../../widgets/marquee_text.dart';
-import '../chat_conversation_view.dart';
-import '../public_user_profile_view.dart';
-import 'radar_painter.dart';
+
+import 'package:soul_finder/controllers/radar/radar_controller.dart';
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/models/radar/radar_models.dart';
+import 'package:soul_finder/services/match/match_service.dart';
+import 'package:soul_finder/services/radar/geocoding_service.dart';
+import 'package:soul_finder/widgets/marquee_text.dart';
+import 'package:soul_finder/views/chat/chat_conversation_view.dart';
+import 'package:soul_finder/views/profile/public_user_profile_view.dart';
+import 'package:soul_finder/views/radar/radar_painter.dart';
 
 class RadarView extends StatefulWidget {
   const RadarView({

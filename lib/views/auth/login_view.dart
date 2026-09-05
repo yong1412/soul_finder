@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../controllers/auth_controller.dart';
-import 'register_view.dart';
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/views/auth/register_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({

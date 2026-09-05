@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'meeting_venue.dart';
+
+import 'package:soul_finder/models/meet/meeting_venue.dart';
 
 enum ChatMessageType {
   text,

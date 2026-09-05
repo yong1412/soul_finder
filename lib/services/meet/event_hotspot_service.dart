@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
-import '../models/event_hotspot.dart';
-import '../models/radar/radar_models.dart';
-import 'google_place_service.dart';
+
+import 'package:soul_finder/models/meet/event_hotspot.dart';
+import 'package:soul_finder/models/radar/radar_models.dart';
+import 'package:soul_finder/services/meet/google_place_service.dart';
 
 class EventHotspotService extends ChangeNotifier {
   static final EventHotspotService _instance = EventHotspotService._internal();
