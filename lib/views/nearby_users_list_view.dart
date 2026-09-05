@@ -205,115 +205,152 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     final isAllSoulsMode = _activeFilter == 'ALL';
 
     return StreamBuilder<Set<String>>(
-      stream: _matchService.watchLikedUserIds(),
-      builder: (context, likedSnapshot) {
-        final likedUserIds = likedSnapshot.data ?? {};
+      stream: _matchService.watchMatchedUserIds(),
+      builder: (context, matchedSnapshot) {
+        final matchedUserIds = matchedSnapshot.data ?? {};
 
-        return StreamBuilder<List<MatchCandidate>>(
-          stream: _matchService.watchCandidates(
-            filterByRadius: filterByRadius,
-            scanMode: currentRadarMode, // 🎯 Synchronous Mode Binding!
-          ),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Text(
-                    'Unable to load nearby souls: ${snapshot.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.redAccent),
-                  ),
-                ),
-              );
-            }
+        return StreamBuilder<Set<String>>(
+          stream: _matchService.watchLikedUserIds(),
+          builder: (context, likedSnapshot) {
+            final likedUserIds = likedSnapshot.data ?? {};
 
-            if (!snapshot.hasData) {
-              return _buildSkeletonList(); // ⚡ Instant Skeleton Placeholder
-            }
-
-            var candidates = snapshot.data!;
-
-            // 🎯 For All Souls mode: Randomly pick up to 20 candidates, rotating every 3 minutes
-            if (isAllSoulsMode && candidates.isNotEmpty) {
-              final timeSeed = DateTime.now().millisecondsSinceEpoch ~/ (180 * 1000); // 3-minute seed
-              final shuffled = List<MatchCandidate>.of(candidates)
-                ..shuffle(math.Random(timeSeed));
-              candidates = shuffled.take(20).toList();
-            }
-
-            if (candidates.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.person_search, size: 80, color: Colors.white24),
-                      const SizedBox(height: 20),
-                      Text(
-                        filterByRadius ? 'No souls or events in ${radiusMeters}m range' : 'No souls found yet',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        filterByRadius
-                            ? 'Try switching to "All Souls" mode or move closer to active event areas.'
-                            : 'Invite friends or complete your profile to discover more connections!',
+            return StreamBuilder<List<MatchCandidate>>(
+              stream: _matchService.watchCandidates(
+                filterByRadius: filterByRadius,
+                scanMode: currentRadarMode, // 🎯 Synchronous Mode Binding!
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Text(
+                        'Unable to load nearby souls: ${snapshot.error}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white38, height: 1.4),
+                        style: const TextStyle(color: Colors.redAccent),
                       ),
-                      if (filterByRadius) ...[
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _activeFilter = 'ALL'; // 🚀 Instant 0ms switch!
-                            });
-                          },
-                          icon: const Icon(Icons.public, size: 18),
-                          label: const Text('Show All Souls Globally'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF3B82F6),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData) {
+                  return _buildSkeletonList(); // ⚡ Instant Skeleton Placeholder
+                }
+
+                var candidates = snapshot.data!;
+
+                // 🎯 For All Souls mode: Randomly pick up to 20 candidates, rotating every 3 minutes
+                if (isAllSoulsMode && candidates.isNotEmpty) {
+                  final timeSeed = DateTime.now().millisecondsSinceEpoch ~/ (180 * 1000); // 3-minute seed
+                  final shuffled = List<MatchCandidate>.of(candidates)
+                    ..shuffle(math.Random(timeSeed));
+                  candidates = shuffled.take(20).toList();
+                }
+
+                if (candidates.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.person_search, size: 80, color: Colors.white24),
+                          const SizedBox(height: 20),
+                          Text(
+                            filterByRadius ? 'No souls or events in ${radiusMeters}m range' : 'No souls found yet',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white70,
                             ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            return RefreshIndicator(
-              onRefresh: () async {
-                setState(() {});
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                itemCount: candidates.length,
-                itemBuilder: (context, index) {
-                  final candidate = candidates[index];
-                  final profile = candidate.profile;
-                  final isLiked = likedUserIds.contains(profile.uid);
-                  final candidateEvent = _findCandidateEventHotspot(candidate);
-
-                  return _buildCandidateCard(
-                    candidate: candidate,
-                    isAllSoulsMode: isAllSoulsMode,
-                    isLiked: isLiked,
-                    detectedEvent: candidateEvent,
-                    themeColor: themeColor,
+                          const SizedBox(height: 10),
+                          Text(
+                            filterByRadius
+                                ? 'Try switching to "All Souls" mode or move closer to active event areas.'
+                                : 'Invite friends or complete your profile to discover more connections!',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white38, height: 1.4),
+                          ),
+                          if (filterByRadius) ...[
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _activeFilter = 'ALL'; // 🚀 Instant 0ms switch!
+                                });
+                              },
+                              icon: const Icon(Icons.public, size: 18),
+                              label: const Text('Show All Souls Globally'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF3B82F6),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   );
-                },
-              ),
+                }
+
+                // 🎨 Sort candidates neatly by Card Border Status & Color Grouping!
+                final sortedCandidates = List<MatchCandidate>.from(candidates);
+                sortedCandidates.sort((a, b) {
+                  final aMatched = matchedUserIds.contains(a.profile.uid);
+                  final bMatched = matchedUserIds.contains(b.profile.uid);
+                  if (aMatched != bMatched) {
+                    return aMatched ? -1 : 1; // 💚 Matched first (Green)
+                  }
+
+                  final aEvent = _findCandidateEventHotspot(a) != null;
+                  final bEvent = _findCandidateEventHotspot(b) != null;
+                  if (aEvent != bEvent) {
+                    return aEvent ? -1 : 1; // 🔥 Event hotspot second
+                  }
+
+                  // Group by gender color order: Female (Pink) -> Male (Blue) -> Non-binary (Orange) -> Prefer not to say (Purple)
+                  final genderOrder = {'female': 0, 'male': 1, 'non-binary': 2, 'prefer not to say': 3};
+                  final aGenderIdx = genderOrder[a.profile.gender.trim().toLowerCase()] ?? 3;
+                  final bGenderIdx = genderOrder[b.profile.gender.trim().toLowerCase()] ?? 3;
+                  if (aGenderIdx != bGenderIdx) {
+                    return aGenderIdx.compareTo(bGenderIdx);
+                  }
+
+                  // Then by compatibility score descending
+                  return b.compatibilityScore.compareTo(a.compatibilityScore);
+                });
+
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() {});
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    itemCount: sortedCandidates.length,
+                    itemBuilder: (context, index) {
+                      final candidate = sortedCandidates[index];
+                      final profile = candidate.profile;
+                      final isLiked = likedUserIds.contains(profile.uid);
+                      final isMatched = matchedUserIds.contains(profile.uid);
+                      final candidateEvent = _findCandidateEventHotspot(candidate);
+
+                      return _buildCandidateCard(
+                        candidate: candidate,
+                        isAllSoulsMode: isAllSoulsMode,
+                        isLiked: isLiked,
+                        isMatched: isMatched,
+                        detectedEvent: candidateEvent,
+                        themeColor: themeColor,
+                        isCoupleMode: currentRadarMode == 'couple',
+                      );
+                    },
+                  ),
+                );
+              },
             );
           },
         );
@@ -390,7 +427,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     return null;
   }
 
-  /// Get gender accent color: Male (Blue), Female (Pink/Red), Non-binary (Green), Prefer not to say (Purple)
+  /// Get gender accent color: Male (Blue), Female (Pink/Red), Non-binary (Orange), Prefer not to say (Purple)
   Color _getGenderColor(String gender) {
     final normalized = gender.trim().toLowerCase();
     if (normalized == 'male') {
@@ -398,7 +435,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     } else if (normalized == 'female') {
       return const Color(0xFFF43F5E); // 💖 Pink/Rose Red for Female
     } else if (normalized == 'non-binary' || normalized == 'non binary') {
-      return const Color(0xFF10B981); // 💚 Green for Non-binary
+      return const Color(0xFFFB923C); // 🧡 Vibrant Orange for Non-binary
     } else {
       return const Color(0xFF8B5CF6); // 💜 Purple for Prefer not to say / undisclosed
     }
@@ -409,8 +446,10 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     required MatchCandidate candidate,
     required bool isAllSoulsMode,
     required bool isLiked,
+    required bool isMatched,
     EventHotspot? detectedEvent,
     required Color themeColor,
+    required bool isCoupleMode,
   }) {
     final profile = candidate.profile;
     final score = candidate.compatibilityScore.round();
@@ -421,18 +460,34 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
         ? null // 🔒 Hide profile image in All Souls mode!
         : _decodeProfileImage(profile.profileImageBase64);
 
+    // 🎨 Card Outer Border Color Priority
+    Color cardBorderColor;
+    double cardBorderWidth = 1.2;
+
+    if (isMatched) {
+      // 1. Matched: Green (#10B981)
+      cardBorderColor = const Color(0xFF10B981);
+      cardBorderWidth = 1.8;
+    } else if (detectedEvent != null) {
+      // 2. Event Hotspot: Glowing Mode Color (Rose Red in Couple mode / Glowing Blue in Friend mode)
+      cardBorderColor = isCoupleMode ? const Color(0xFFF43F5E) : const Color(0xFF38BDF8);
+      cardBorderWidth = 1.8;
+    } else {
+      // 3. Default Mode Border: Wine Red / Burgundy in Couple mode (#9F1239) vs Blue in Friend mode (#3B82F6)
+      cardBorderColor = isCoupleMode
+          ? const Color(0xFF9F1239) // 🍷 Deep Wine Red / Burgundy for Find Couple
+          : const Color(0xFF3B82F6).withValues(alpha: 0.6); // 💙 Blue for Find Friends
+      cardBorderWidth = 1.2;
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: const Color(0xFF1E293B),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: detectedEvent != null
-              ? const Color(0xFFF59E0B)
-              : (isLiked
-                  ? const Color(0xFFF43F5E)
-                  : genderColor.withValues(alpha: 0.6)),
-          width: 1.5,
+          color: cardBorderColor,
+          width: cardBorderWidth,
         ),
       ),
       child: InkWell(
@@ -461,11 +516,9 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: detectedEvent != null
-                        ? const Color(0xFFF59E0B)
-                        : (isHighMatch
-                            ? const Color(0xFF10B981)
-                            : genderColor),
+                    color: isHighMatch
+                        ? const Color(0xFF10B981)
+                        : genderColor,
                     width: 2,
                   ),
                 ),

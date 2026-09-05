@@ -309,6 +309,29 @@ class MatchService {
     }).handleError((e) => <String>{});
   }
 
+  Stream<Set<String>> watchMatchedUserIds() {
+    final currentUid = _auth.currentUser?.uid;
+    if (currentUid == null || currentUid.isEmpty) {
+      return Stream.value({});
+    }
+    return _matches
+        .where('users', arrayContains: currentUid)
+        .where('status', isEqualTo: 'active')
+        .snapshots()
+        .map((snapshot) {
+      final set = <String>{};
+      for (final doc in snapshot.docs) {
+        final users = (doc.data()['users'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList();
+        for (final uid in users) {
+          if (uid != currentUid) set.add(uid);
+        }
+      }
+      return set;
+    }).handleError((e) => <String>{});
+  }
+
   Stream<bool> watchMatchStatus(String targetUid) {
     final currentUid = _auth.currentUser?.uid;
     if (currentUid == null || currentUid.isEmpty) {
