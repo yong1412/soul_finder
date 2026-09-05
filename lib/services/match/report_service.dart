@@ -209,7 +209,7 @@ Future<void> showReportUserDialog({
                         }
                       },
                     );
-                  }).toList(),
+                  }),
                   const SizedBox(height: 10),
                   TextField(
                     controller: detailsController,

@@ -1,12 +1,10 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-/// Service for resolving Google Place IDs & Text Queries into exact coordinates and formatted address
 class GooglePlaceService {
-  // Uses existing Google API Key in the application
   static const String _apiKey = 'AIzaSyCdU2CI4os8Xo6W4P-ePIwE4mc5idrPUQQ';
 
-  /// Fetch exact coordinates, official name and formatted address using a Google Place ID
   static Future<Map<String, dynamic>?> getPlaceDetailsById(String placeId) async {
     final Uri url = Uri.parse(
       'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&fields=name,geometry,formatted_address,place_id&key=$_apiKey',
@@ -30,12 +28,13 @@ class GooglePlaceService {
         }
       }
     } catch (e) {
-      print('Google Places API PlaceDetails Error: $e');
+      if (kDebugMode) {
+        debugPrint('Google Places API PlaceDetails Error: $e');
+      }
     }
     return null;
   }
 
-  /// Text Search fallback for finding a Place ID and exact coordinates by location query
   static Future<Map<String, dynamic>?> searchPlaceCoordinates(String query) async {
     final Uri url = Uri.parse(
       'https://maps.googleapis.com/maps/api/place/textsearch/json?query=${Uri.encodeComponent(query)}&key=$_apiKey',
@@ -59,7 +58,9 @@ class GooglePlaceService {
         }
       }
     } catch (e) {
-      print('Google Places API TextSearch Error: $e');
+      if (kDebugMode) {
+        debugPrint('Google Places API TextSearch Error: $e');
+      }
     }
     return null;
   }

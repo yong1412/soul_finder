@@ -85,7 +85,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     try {
       final candidate = await _matchService.getCandidateForUid(widget.targetUserUid);
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(context);
 
       if (candidate != null) {
         Navigator.push(
@@ -101,7 +101,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Close loading dialog
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading profile: $e'), backgroundColor: Colors.redAccent),
         );
@@ -118,14 +118,12 @@ class _ChatConversationViewState extends State<ChatConversationView> {
       final latestMessage = messages.last;
       final currentUid = _chatService.currentUserUid;
 
-      // 1. Mark as read if receiving a new message while the view is active
       if (latestMessage.receiverUid == currentUid &&
           _lastReadMessageId != latestMessage.id) {
         _lastReadMessageId = latestMessage.id;
         unawaited(_markConversationRead());
       }
 
-      // 2. Decide whether to scroll to bottom
       final isMyMessage = latestMessage.senderUid == currentUid;
       final isAtBottom = !_scrollController.hasClients ||
           _scrollController.offset >=
@@ -294,7 +292,6 @@ class _ChatConversationViewState extends State<ChatConversationView> {
 
       if (!mounted) return;
 
-      // Show uploading dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -322,7 +319,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
       try {
         final mediaUrl = await CloudinaryService.uploadMedia(file, isVideo: isVideo);
 
-        if (mounted) Navigator.pop(context); // Close loading dialog
+        if (mounted) Navigator.pop(context);
 
         await _chatService.sendMediaMessage(
           targetUserUid: widget.targetUserUid,
@@ -331,7 +328,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
         );
         _scrollToBottom();
       } catch (e) {
-        if (mounted) Navigator.pop(context); // Close loading dialog
+        if (mounted) Navigator.pop(context);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -437,7 +434,6 @@ class _ChatConversationViewState extends State<ChatConversationView> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        // 🎯 Tapping the Avatar/Name in AppBar opens target user profile + Displays Realtime Online/Offline Status
         title: StreamBuilder<MatchPairData?>(
           stream: _matchService.watchPair(widget.targetUserUid),
           builder: (context, snapshot) {
@@ -625,7 +621,6 @@ class _ChatConversationViewState extends State<ChatConversationView> {
         ),
         child: Row(
           children: [
-            // Media Attachment Button (Photos / Videos)
             IconButton(
               icon: const Icon(
                 Icons.add_photo_alternate_outlined,
@@ -690,7 +685,6 @@ class _ChatConversationViewState extends State<ChatConversationView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          // Left Avatar
           GestureDetector(
             onTap: isMine ? null : _openTargetUserProfile,
             child: CircleAvatar(
@@ -711,12 +705,10 @@ class _ChatConversationViewState extends State<ChatConversationView> {
           ),
           const SizedBox(width: 10),
 
-          // Message Content Column
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Sender Name & Timestamp
                 Row(
                   children: [
                     GestureDetector(
@@ -864,13 +856,11 @@ class _ChatConversationViewState extends State<ChatConversationView> {
                       },
                       child: Hero(
                         tag: 'msg_${message.id}',
-                        child: Image.network(
-                          mediaUrl,
+                        child: SmartChatImage(
+                          imageUrl: mediaUrl,
                           width: 220,
                           height: 200,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.broken_image, color: Colors.white24),
                         ),
                       ),
                     )),
@@ -882,7 +872,7 @@ class _ChatConversationViewState extends State<ChatConversationView> {
   void _showMessageOptions(ChatMessage message) {
     final createdAt = message.createdAt ?? DateTime.now();
     final diffInSeconds = DateTime.now().difference(createdAt).inSeconds;
-    final bool canDelete = diffInSeconds <= 180; // 3 minutes limit
+    final bool canDelete = diffInSeconds <= 180;
 
     showModalBottomSheet(
       context: context,
@@ -1334,6 +1324,120 @@ class _SharedLocation {
       title: title,
       address: address,
       mapsUrl: mapsUrl,
+    );
+  }
+}
+
+class SmartChatImage extends StatefulWidget {
+  const SmartChatImage({
+    super.key,
+    required this.imageUrl,
+    this.width = 220,
+    this.height = 200,
+    this.fit = BoxFit.cover,
+  });
+
+  final String imageUrl;
+  final double width;
+  final double height;
+  final BoxFit fit;
+
+  @override
+  State<SmartChatImage> createState() => _SmartChatImageState();
+}
+
+class _SmartChatImageState extends State<SmartChatImage> {
+  int _retryCount = 0;
+  bool _hasError = false;
+  Timer? _retryTimer;
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleRetry() {
+    if (_retryCount >= 10 || _retryTimer != null) return;
+    _retryTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _retryCount++;
+          _hasError = false;
+          _retryTimer = null;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      _scheduleRetry();
+      return Container(
+        width: widget.width,
+        height: widget.height,
+        color: const Color(0xFF0F172A),
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF38BDF8)),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Syncing photo...',
+                style: TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Image.network(
+      widget.imageUrl,
+      key: ValueKey('${widget.imageUrl}_$_retryCount'),
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: const Color(0xFF0F172A),
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+              color: const Color(0xFF38BDF8),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_hasError) {
+            setState(() {
+              _hasError = true;
+            });
+          }
+        });
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: const Color(0xFF0F172A),
+          child: const Center(
+            child: Icon(Icons.broken_image_outlined, color: Colors.white24, size: 28),
+          ),
+        );
+      },
     );
   }
 }

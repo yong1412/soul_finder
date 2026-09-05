@@ -93,7 +93,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                       userAgentPackageName: 'tarc.edu.my.soulFinder',
                       maxNativeZoom: 19,
                     ),
-                    // Pulsing Area for the other user
                     CircleLayer(
                       circles: [
                         CircleMarker(
@@ -106,7 +105,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                         ),
                       ],
                     ),
-                    // Connection line to midpoint
                     PolylineLayer(
                       polylines: [
                         Polyline(
@@ -118,7 +116,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                     ),
                     MarkerLayer(
                       markers: [
-                        // Suggested Venues (Real discovery markers with Rating Stars ⭐)
                         ...widget.suggestedVenues.map((venue) => Marker(
                               point: LatLng(venue.latitude, venue.longitude),
                               width: 60,
@@ -151,7 +148,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                                         size: 20,
                                       ),
                                     ),
-                                    // ⭐ Rating Star Badge
                                     Positioned(
                                       right: -2,
                                       bottom: -2,
@@ -184,7 +180,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                               ),
                             )),
 
-                        // Radar Sweep at Midpoint
                         Marker(
                           point: midpoint,
                           width: 200,
@@ -202,7 +197,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                             },
                           ),
                         ),
-                        // User Marker
                         Marker(
                           point: currentPoint,
                           width: 60,
@@ -213,7 +207,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                             color: Color(0xFF3B82F6),
                           ),
                         ),
-                        // Midpoint Target
                         Marker(
                           point: midpoint,
                           width: 80,
@@ -233,7 +226,6 @@ class _MatchMeetingMapState extends State<MatchMeetingMap>
                     ),
                   ],
                 ),
-                // Overlay Gradient to make map fit the dark theme better
                 IgnorePointer(
                   child: Container(
                     decoration: BoxDecoration(
@@ -334,12 +326,10 @@ class _MeetingRadarPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
-    // Conic rings
     canvas.drawCircle(center, radius * 0.4, ringPaint);
     canvas.drawCircle(center, radius * 0.7, ringPaint);
     canvas.drawCircle(center, radius, ringPaint);
 
-    // Rotating Sweep
     final sweepPaint = Paint()
       ..shader = SweepGradient(
         center: Alignment.center,
@@ -353,7 +343,6 @@ class _MeetingRadarPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, sweepPaint);
 
-    // Leading line
     final linePaint = Paint()
       ..color = color.withValues(alpha: 0.6)
       ..strokeWidth = 1.5;

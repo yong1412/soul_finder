@@ -24,16 +24,14 @@ class ChatListView extends StatelessWidget {
             unselectedLabelColor: Colors.white38,
             tabs: const [
               Tab(text: 'Direct Messages'),
-              Tab(text: 'Channels'), // 👈 Updated from "Interest Channels" to "Channels"
+              Tab(text: 'Channels'),
             ],
           ),
           Expanded(
             child: TabBarView(
               children: [
-                // 1. Independent Direct Messages View Component
                 const DirectMessagesView(),
 
-                // 2. Collapsible Channels View Component (Event & Interest Channels)
                 ChannelsView(authController: authController),
               ],
             ),

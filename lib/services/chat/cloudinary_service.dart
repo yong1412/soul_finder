@@ -29,10 +29,8 @@ class CloudinaryService {
     }
   }
 
-  /// 辅助方法：将 Cloudinary 视频链接转换为封面图链接
   static String getVideoThumbnail(String videoUrl) {
     if (!videoUrl.contains('upload/')) return videoUrl;
-    // Cloudinary 支持通过更改扩展名直接生成视频封面
     return videoUrl.replaceAll(RegExp(r'\.(mp4|mov|avi|wmv)$'), '.jpg');
   }
 }

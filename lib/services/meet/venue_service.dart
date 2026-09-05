@@ -197,7 +197,6 @@ out center tags;
       final elementId = rawElement['id']?.toString() ??
           '${latitude}_$longitude';
 
-      // Parse or generate realistic rating (e.g., 4.2 to 4.9⭐)
       final rawRating = double.tryParse(rawTags['stars']?.toString() ?? rawTags['rating']?.toString() ?? '');
       final rating = rawRating != null && rawRating >= 1.0 && rawRating <= 5.0
           ? rawRating
@@ -238,7 +237,6 @@ out center tags;
     final venues = uniqueVenues.values.toList();
 
     venues.sort((first, second) {
-      // Highest rating first
       final ratingComparison = second.rating.compareTo(first.rating);
       if (ratingComparison != 0) {
         return ratingComparison;

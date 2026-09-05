@@ -34,7 +34,6 @@ class LocationService {
     }
   }
 
-  /// Get current GPS location and automatically sync it to Firestore for other users to detect on Radar
   Future<Position?> getCurrentLocation() async {
     try {
       final hasPermission = await handleLocationPermission();
@@ -44,7 +43,6 @@ class LocationService {
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      // Sync GPS location to Firestore user document immediately
       await _syncLocationToFirestore(position);
 
       return position;
@@ -54,12 +52,11 @@ class LocationService {
     }
   }
 
-  /// Get continuous GPS stream and automatically sync updates to Firestore
   Stream<Position> getLocationStream() {
     try {
       const settings = LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Sync to Firestore every 10 meters
+        distanceFilter: 10,
       );
 
       return Geolocator.getPositionStream(locationSettings: settings).map((position) {
@@ -74,7 +71,6 @@ class LocationService {
     }
   }
 
-  /// Helper to write user's current GPS coordinates to Firestore users/{uid}
   Future<void> _syncLocationToFirestore(Position position) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null || uid.isEmpty) return;

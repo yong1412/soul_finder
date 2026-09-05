@@ -25,15 +25,13 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
   final MatchService _matchService = MatchService();
   final EventHotspotService _eventService = EventHotspotService();
 
-  // Mode filter: 'ALL' (All Souls - Privacy Protected), 'RADAR' (Radar Range 200m + Event Souls)
   String _activeFilter = 'ALL';
   bool _isSwitchingMode = false;
-  Timer? _autoRefreshTimer; // Timer for auto-refreshing All Souls every 3 minutes
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
-    // ⏰ Auto refresh candidate souls every 3 minutes
     _autoRefreshTimer = Timer.periodic(const Duration(minutes: 3), (_) {
       if (mounted) {
         setState(() {});
@@ -71,12 +69,11 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
         final isCoupleMode = userSnapshot.data?.radarMode == 'couple';
         final currentRadarMode = userSnapshot.data?.radarMode ?? 'friends';
         final themeColor = isCoupleMode
-            ? const Color(0xFFF43F5E) // 🌹 Rose Red for Find Couple mode!
-            : const Color(0xFF38BDF8); // 💙 Sky Blue for Find Friends mode!
+            ? const Color(0xFFF43F5E)
+            : const Color(0xFF38BDF8);
 
         return Column(
           children: [
-            // 1. Streamlined Top Filter Bar (All Souls & Dynamic Radar Range)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               color: const Color(0xFF0F172A),
@@ -95,7 +92,6 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
               ),
             ),
 
-            // 2. Main Content View with Smooth Privacy Transition
             Expanded(
               child: _isSwitchingMode
                   ? _buildSwitchingLoadingView(themeColor)
@@ -125,7 +121,6 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
             _isSwitchingMode = true;
           });
 
-          // 🛡️ Privacy Transition Delay: Mask data briefly while switching rules
           await Future.delayed(const Duration(milliseconds: 650));
 
           if (mounted) {
@@ -155,7 +150,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
 
   /// Privacy Loading View shown during mode transition
   Widget _buildSwitchingLoadingView(Color themeColor) {
-    final isGoingToRadar = _activeFilter == 'ALL'; // currently ALL, going to RADAR
+    final isGoingToRadar = _activeFilter == 'ALL';
     final targetTitle = isGoingToRadar ? 'Scanning Radar Range...' : 'Loading All Souls...';
 
     return Center(
@@ -218,7 +213,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
             return StreamBuilder<List<MatchCandidate>>(
               stream: _matchService.watchCandidates(
                 filterByRadius: filterByRadius,
-                scanMode: currentRadarMode, // 🎯 Synchronous Mode Binding!
+                scanMode: currentRadarMode,
               ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -235,14 +230,13 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                 }
 
                 if (!snapshot.hasData) {
-                  return _buildSkeletonList(); // ⚡ Instant Skeleton Placeholder
+                  return _buildSkeletonList();
                 }
 
                 var candidates = snapshot.data!;
 
-                // 🎯 For All Souls mode: Randomly pick up to 20 candidates, rotating every 3 minutes
                 if (isAllSoulsMode && candidates.isNotEmpty) {
-                  final timeSeed = DateTime.now().millisecondsSinceEpoch ~/ (180 * 1000); // 3-minute seed
+                  final timeSeed = DateTime.now().millisecondsSinceEpoch ~/ (180 * 1000);
                   final shuffled = List<MatchCandidate>.of(candidates)
                     ..shuffle(math.Random(timeSeed));
                   candidates = shuffled.take(20).toList();
@@ -278,7 +272,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                             ElevatedButton.icon(
                               onPressed: () {
                                 setState(() {
-                                  _activeFilter = 'ALL'; // 🚀 Instant 0ms switch!
+                                  _activeFilter = 'ALL';
                                 });
                               },
                               icon: const Icon(Icons.public, size: 18),
@@ -304,16 +298,15 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                   final aMatched = matchedUserIds.contains(a.profile.uid);
                   final bMatched = matchedUserIds.contains(b.profile.uid);
                   if (aMatched != bMatched) {
-                    return aMatched ? -1 : 1; // 💚 Matched first (Green)
+                    return aMatched ? -1 : 1;
                   }
 
                   final aEvent = _findCandidateEventHotspot(a) != null;
                   final bEvent = _findCandidateEventHotspot(b) != null;
                   if (aEvent != bEvent) {
-                    return aEvent ? -1 : 1; // 🔥 Event hotspot second
+                    return aEvent ? -1 : 1;
                   }
 
-                  // Group by gender color order: Female (Pink) -> Male (Blue) -> Non-binary (Orange) -> Prefer not to say (Purple)
                   final genderOrder = {'female': 0, 'male': 1, 'non-binary': 2, 'prefer not to say': 3};
                   final aGenderIdx = genderOrder[a.profile.gender.trim().toLowerCase()] ?? 3;
                   final bGenderIdx = genderOrder[b.profile.gender.trim().toLowerCase()] ?? 3;
@@ -428,17 +421,16 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     return null;
   }
 
-  /// Get gender accent color: Male (Blue), Female (Pink/Red), Non-binary (Orange), Prefer not to say (Purple)
   Color _getGenderColor(String gender) {
     final normalized = gender.trim().toLowerCase();
     if (normalized == 'male') {
-      return const Color(0xFF38BDF8); // 💙 Blue for Male
+      return const Color(0xFF38BDF8);
     } else if (normalized == 'female') {
-      return const Color(0xFFF43F5E); // 💖 Pink/Rose Red for Female
+      return const Color(0xFFF43F5E);
     } else if (normalized == 'non-binary' || normalized == 'non binary') {
-      return const Color(0xFFFB923C); // 🧡 Vibrant Orange for Non-binary
+      return const Color(0xFFFB923C);
     } else {
-      return const Color(0xFF8B5CF6); // 💜 Purple for Prefer not to say / undisclosed
+      return const Color(0xFF8B5CF6);
     }
   }
 
@@ -458,26 +450,22 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
     final genderColor = _getGenderColor(profile.gender);
 
     final profileImage = isAllSoulsMode
-        ? null // 🔒 Hide profile image in All Souls mode!
+        ? null
         : _decodeProfileImage(profile.profileImageBase64);
 
-    // 🎨 Card Outer Border Color Priority
     Color cardBorderColor;
     double cardBorderWidth = 1.2;
 
     if (isMatched) {
-      // 1. Matched: Green (#10B981)
       cardBorderColor = const Color(0xFF10B981);
       cardBorderWidth = 1.8;
     } else if (detectedEvent != null) {
-      // 2. Event Hotspot: Glowing Mode Color (Rose Red in Couple mode / Glowing Blue in Friend mode)
       cardBorderColor = isCoupleMode ? const Color(0xFFF43F5E) : const Color(0xFF38BDF8);
       cardBorderWidth = 1.8;
     } else {
-      // 3. Default Mode Border: Wine Red / Burgundy in Couple mode (#9F1239) vs Blue in Friend mode (#3B82F6)
       cardBorderColor = isCoupleMode
-          ? const Color(0xFF9F1239) // 🍷 Deep Wine Red / Burgundy for Find Couple
-          : const Color(0xFF3B82F6).withValues(alpha: 0.6); // 💙 Blue for Find Friends
+          ? const Color(0xFF9F1239)
+          : const Color(0xFF3B82F6).withValues(alpha: 0.6);
       cardBorderWidth = 1.2;
     }
 
@@ -495,10 +483,8 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
         borderRadius: BorderRadius.circular(16),
         onTap: () {
           if (isAllSoulsMode) {
-            // 🔒 In All Souls mode, profile data is restricted until a mutual match!
             _showPrivacyLockedModal(context, profile);
           } else {
-            // In Radar mode, allow opening full profile
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -511,7 +497,6 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              // Avatar Section (🔒 Locked/Hidden Avatar in All Souls mode)
               Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
@@ -654,7 +639,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                                   const SizedBox(width: 2),
                                   Flexible(
                                     child: MarqueeText(
-                                      text: detectedEvent.name, // e.g. "Serimas Condo • Pearl Tower"
+                                      text: detectedEvent.name,
                                       style: const TextStyle(
                                         color: Color(0xFFF59E0B),
                                         fontSize: 9.5,
@@ -684,7 +669,7 @@ class _NearbyUsersListViewState extends State<NearbyUsersListView> {
                                 Icon(Icons.location_on, size: 10, color: themeColor),
                                 const SizedBox(width: 2),
                                 Text(
-                                  _formatCompactDistance(candidate.distanceKm), // 👈 e.g. "120m" or "1km"
+                                  _formatCompactDistance(candidate.distanceKm),
                                   style: TextStyle(
                                     color: themeColor,
                                     fontSize: 9.5,

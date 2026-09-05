@@ -58,12 +58,10 @@ class _ChannelsViewState extends State<ChannelsView> {
             return ListView(
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               children: [
-                // 1. Collapsible Section 1: Event Channels
                 _buildCollapsibleEventChannels(events),
 
                 const SizedBox(height: 12),
 
-                // 2. Collapsible Section 2: Interest Channels
                 _buildCollapsibleInterestChannels(channels, snapshot.connectionState == ConnectionState.waiting),
               ],
             );
@@ -84,7 +82,7 @@ class _ChannelsViewState extends State<ChannelsView> {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          initiallyExpanded: true, // 可收放，默认展开
+          initiallyExpanded: true,
           iconColor: const Color(0xFF38BDF8),
           collapsedIconColor: Colors.white54,
           title: Row(
@@ -146,7 +144,7 @@ class _ChannelsViewState extends State<ChannelsView> {
         children: [
           const SizedBox(height: 2),
           MarqueeText(
-            text: '📍 ${event.name}', // Serimas Condo • Pearl Tower
+            text: '📍 ${event.name}',
             style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
           ),
           const SizedBox(height: 2),
@@ -180,7 +178,7 @@ class _ChannelsViewState extends State<ChannelsView> {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          initiallyExpanded: true, // 可收放，默认展开
+          initiallyExpanded: true,
           iconColor: const Color(0xFF3B82F6),
           collapsedIconColor: Colors.white54,
           title: Row(
@@ -331,7 +329,7 @@ class _ChannelsViewState extends State<ChannelsView> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      event.name, // "Serimas Condo • Pearl Tower"
+                      event.name,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,

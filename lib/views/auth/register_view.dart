@@ -219,7 +219,6 @@ class _RegisterViewState extends State<RegisterView> {
 
                         const SizedBox(height: 14),
 
-                        // Height & Weight Row
                         Row(
                           children: [
                             Expanded(

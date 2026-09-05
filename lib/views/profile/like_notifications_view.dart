@@ -41,7 +41,7 @@ class _LikeNotificationsViewState extends State<LikeNotificationsView> {
         await _matchService.getCandidateForUid(notification.fromUid);
 
     if (!mounted) return;
-    Navigator.pop(context); // Close loading dialog
+    Navigator.pop(context);
 
     if (!mounted) return;
 
@@ -96,6 +96,7 @@ class _LikeNotificationsViewState extends State<LikeNotificationsView> {
                 OutlinedButton.icon(
                   onPressed: () {
                     Navigator.pop(dialogContext);
+                    if (!mounted) return;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -112,6 +113,7 @@ class _LikeNotificationsViewState extends State<LikeNotificationsView> {
                 FilledButton.icon(
                   onPressed: () {
                     Navigator.pop(dialogContext);
+                    if (!mounted) return;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -249,10 +251,8 @@ class _LikeNotificationsViewState extends State<LikeNotificationsView> {
         ),
         body: TabBarView(
           children: [
-            // 1. Likes Notifications Section
             _buildLikesTab(),
 
-            // 2. Independent Event Hotspots Section
             _buildEventsTab(),
           ],
         ),

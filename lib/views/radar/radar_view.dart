@@ -45,7 +45,6 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    // Discovery Radius is stored in km in the profile, convert to meters for radar (50m - 200m)
     final user = widget.authController.currentUser;
     final initialRadius = user != null 
         ? (user.discoveryRadius * 1000).clamp(50.0, 200.0) 
@@ -64,10 +63,8 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
       duration: const Duration(seconds: 4),
     )..repeat();
 
-    // Listen to profile changes to update radar radius dynamically
     widget.authController.addListener(_onAuthChanged);
 
-    // Subscribe to match candidates & liked users for high match popup on radar
     _likedUserIdsSubscription = _matchService.watchLikedUserIds().listen((likedIds) {
       if (!mounted) return;
       _likedUserIds = likedIds;
@@ -89,7 +86,7 @@ class _RadarViewState extends State<RadarView> with SingleTickerProviderStateMix
 
   void _onRadarControllerChanged() {
     if (!mounted) return;
-    _subscribeToCandidates(); // 🎯 Re-subscribe to match candidates whenever scanMode changes!
+    _subscribeToCandidates();
     _checkAndShowHighMatchCandidate();
   }
 

@@ -6,7 +6,6 @@ class ImageUploadService {
   static const String _apiKey = '4178054791d9da8835876b76e5556440';
   static const String _apiUrl = 'https://api.imgbb.com/1/upload';
 
-  /// Uploads an image to ImgBB and returns the direct image URL.
   static Future<String> uploadImage(XFile imageFile) async {
     try {
       final request = http.MultipartRequest('POST', Uri.parse(_apiUrl));

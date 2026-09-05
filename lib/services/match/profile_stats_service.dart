@@ -114,9 +114,6 @@ class ProfileStatsService {
       return;
     }
 
-    // One deterministic document per viewer gives a unique-view count.
-    // Opening the same profile again updates the time but does not increase
-    // the displayed number.
     await _firestore
         .collection('profileViews')
         .doc(profileUid)

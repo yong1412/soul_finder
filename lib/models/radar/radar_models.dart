@@ -2,8 +2,8 @@ enum StationType { lrt, mrt, event }
 
 class Station {
   final String id;
-  final String name; // Place name
-  final String? eventTitle; // Event Title (used when type == StationType.event)
+  final String name;
+  final String? eventTitle;
   final double latitude;
   final double longitude;
   final StationType type;
@@ -34,8 +34,8 @@ class StationStayRecord {
   final Station station;
   DateTime firstSeen;
   DateTime lastSeen;
-  int initialHistoryDurationMinutes; // Accumulated minutes loaded from Firestore before current session
-  DateTime currentSessionFirstSeen; // Session start timestamp
+  int initialHistoryDurationMinutes;
+  DateTime currentSessionFirstSeen;
   int totalDurationMinutes;
   int visitCount;
 

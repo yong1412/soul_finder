@@ -40,7 +40,6 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
         widget.candidate.profile.uid,
       );
     } catch (error) {
-      // Profile viewing should still work if analytics cannot be recorded.
       debugPrint('Unable to record profile view: $error');
     }
   }
@@ -316,7 +315,6 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
             ),
           ],
           const SizedBox(height: 20),
-          // Dedicated "Bio" Card
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -430,7 +428,6 @@ class _PublicUserProfileViewState extends State<PublicUserProfileView> {
           ),
           const SizedBox(height: 16),
 
-          // Interests Card (Styled identically to UserDashboardView My Profile)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),

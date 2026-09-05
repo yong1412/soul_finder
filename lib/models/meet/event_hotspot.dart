@@ -2,22 +2,21 @@ import 'package:soul_finder/models/radar/radar_models.dart';
 
 class EventHotspot {
   final String id;
-  final String? placeId; // 👈 Google Place ID for high-precision building identification
-  final String name; // e.g., "Serimas Condominium Pearl Tower"
-  final String eventTitle; // e.g., "Pearl Tower Resident & Soul Gathering"
+  final String? placeId;
+  final String name;
+  final String eventTitle;
   final String description;
-  double latitude; // Mutable in case coordinates are refreshed via Place ID
+  double latitude;
   double longitude;
   final double radiusMeters;
   
-  // 📈 Incremental fields
-  int interestedCount; // Interested people count
-  int activeAttendees; // People currently in vicinity
-  int totalStayMinutes; // Cumulative stay duration in minutes
+  int interestedCount;
+  int activeAttendees;
+  int totalStayMinutes;
   
   final DateTime eventTime;
   final String organizerName;
-  bool isInterested; // Whether current user is interested
+  bool isInterested;
 
   EventHotspot({
     required this.id,
@@ -36,30 +35,25 @@ class EventHotspot {
     this.isInterested = false,
   });
 
-  /// Update coordinates if fetched from Google Place ID Details API
   void updateCoordinates(double newLat, double newLng) {
     latitude = newLat;
     longitude = newLng;
   }
 
-  /// Increment interested count
   void incrementInterested() {
     interestedCount++;
     isInterested = true;
   }
 
-  /// Decrement interested count
   void decrementInterested() {
     if (interestedCount > 0) interestedCount--;
     isInterested = false;
   }
 
-  /// Increment stay duration
   void addStayMinutes(int mins) {
     totalStayMinutes += mins;
   }
 
-  /// Convert EventHotspot to a Station for Radar integration
   Station toStation() {
     return Station(
       id: id,

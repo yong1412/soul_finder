@@ -18,7 +18,7 @@ class UserProfile {
     this.isOnline = true,
     this.hideOnlineStatus = false,
     this.radarMode = 'friends',
-    this.accountStatus = 'active', // 'active', 'suspended', 'banned'
+    this.accountStatus = 'active',
     this.reportCount = 0,
     this.bannedUntil,
     this.heightCm,
@@ -44,8 +44,8 @@ class UserProfile {
   final String profileImageBase64;
   final bool isOnline;
   final bool hideOnlineStatus;
-  final String radarMode; // 'friends' or 'couple'
-  final String accountStatus; // 'active', 'suspended', 'banned'
+  final String radarMode;
+  final String accountStatus;
   final int reportCount;
   final DateTime? bannedUntil;
   final double? heightCm;
@@ -53,25 +53,21 @@ class UserProfile {
   final double? latitude;
   final double? longitude;
 
-  // Profile Privacy Controls
-  final bool isPrivateProfile; // Master toggle to hide all profile details
+  final bool isPrivateProfile;
   final bool hideBio;
-  final bool hideStats; // Height & Weight
+  final bool hideStats;
   final bool hideInterests;
   final bool hideAgeGender;
 
   bool get hasLocation => latitude != null && longitude != null;
 
-  /// Public online status visible to others (Hidden if user activated hideOnlineStatus)
   bool get isPubliclyOnline => isOnline && !hideOnlineStatus;
 
-  /// Privacy helper getters
   bool get shouldHideBio => isPrivateProfile || hideBio;
   bool get shouldHideStats => isPrivateProfile || hideStats;
   bool get shouldHideInterests => isPrivateProfile || hideInterests;
   bool get shouldHideAgeGender => isPrivateProfile || hideAgeGender;
 
-  /// Check if user is currently banned for 3 days due to 10+ reports from 3+ reporters
   bool get isBanned {
     if (accountStatus == 'banned') {
       if (bannedUntil == null) return true;
@@ -80,7 +76,6 @@ class UserProfile {
     return false;
   }
 
-  /// Check if user account is marked as suspended (> 5 reports)
   bool get isSuspended {
     if (isBanned) return false;
     return accountStatus == 'suspended' || reportCount >= 5;
@@ -90,7 +85,6 @@ class UserProfile {
     final uid = json['uid'] as String? ?? '';
     final bannedTimestamp = json['bannedUntil'] as Timestamp?;
 
-    // Check cached moderation status evaluated from reports
     final cachedStatus = ReportService.getModerationStatus(uid);
     final rawStatus = json['accountStatus'] as String? ?? 'active';
     final rawReportCount = (json['reportCount'] as num?)?.toInt() ?? 0;

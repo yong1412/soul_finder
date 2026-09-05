@@ -101,10 +101,7 @@ class EventHotspotService extends ChangeNotifier {
       details = await GooglePlaceService.getPlaceDetailsById(event.placeId!);
     }
 
-    // Fallback to text search if Place ID returned no result
-    if (details == null) {
-      details = await GooglePlaceService.searchPlaceCoordinates(event.name);
-    }
+    details ??= await GooglePlaceService.searchPlaceCoordinates(event.name);
 
     if (details != null) {
       final double lat = details['latitude'];

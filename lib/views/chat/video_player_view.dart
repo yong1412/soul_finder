@@ -15,15 +15,12 @@ class VideoPlayerView extends StatefulWidget {
 }
 
 class _VideoPlayerViewState extends State<VideoPlayerView> {
-  // Create a [Player] to control playback.
   late final player = Player();
-  // Create a [VideoController] to handle video output from [Player].
   late final controller = VideoController(player);
 
   @override
   void initState() {
     super.initState();
-    // Play the video.
     player.open(Media(widget.videoUrl));
   }
 

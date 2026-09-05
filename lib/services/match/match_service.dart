@@ -175,12 +175,10 @@ class MatchService {
           continue;
         }
 
-        // 🎯 PUBLIC ONLINE FILTER: Only show users who are publicly ONLINE!
         if (!other.isPubliclyOnline) {
           continue;
         }
 
-        // 🎯 RADAR MODE INTENT MATCHING ('friends' vs 'couple')
         if (effectiveScanMode.isNotEmpty) {
           final otherRadarMode = other.radarMode.toLowerCase().trim();
           if (effectiveScanMode == 'couple') {
@@ -192,12 +190,10 @@ class MatchService {
           }
         }
 
-        // Radar discovery radius is 50m - 200m (0.05 km - 0.2 km)
         final effectiveRadiusKm = currentProfile.discoveryRadius.clamp(0.05, 0.2);
 
         final distance = _distanceBetween(currentProfile, other);
 
-        // Filter out users who do not have valid location OR are outside the radar range (50m - 200m)
         if (filterByRadius && (distance == null || distance > effectiveRadiusKm)) {
           continue;
         }
@@ -408,9 +404,6 @@ class MatchService {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        // A mutual match gets exactly one shared chat document. The sorted
-        // match ID prevents duplicate chats when either user completes the
-        // mutual match.
         transaction.set(chatReference, {
           'chatId': chatReference.id,
           'participants': users,
@@ -427,7 +420,6 @@ class MatchService {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
-        // Update the earlier notification received by the first liker.
         transaction.set(receivedNotification, {
           'fromUid': targetUid,
           'fromName': targetName,

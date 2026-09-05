@@ -24,12 +24,10 @@ class RadarPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    // Draw concentric circles
     canvas.drawCircle(center, radius, ringPaint);
     canvas.drawCircle(center, radius * 0.7, ringPaint);
     canvas.drawCircle(center, radius * 0.4, ringPaint);
 
-    // Draw axis lines
     final axisPaint = Paint()
       ..color = color.withValues(alpha: 0.15)
       ..style = PaintingStyle.stroke
@@ -37,7 +35,6 @@ class RadarPainter extends CustomPainter {
     canvas.drawLine(Offset(center.dx - radius, center.dy), Offset(center.dx + radius, center.dy), axisPaint);
     canvas.drawLine(Offset(center.dx, center.dy - radius), Offset(center.dx, center.dy + radius), axisPaint);
 
-    // Draw rotating sweep
     final sweepPaint = Paint()
       ..shader = SweepGradient(
         center: Alignment.center,
@@ -53,7 +50,6 @@ class RadarPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, sweepPaint);
     
-    // Draw the front line of the sweep
     final linePaint = Paint()
       ..color = color.withValues(alpha: 0.85)
       ..strokeWidth = 2.0
@@ -66,7 +62,6 @@ class RadarPainter extends CustomPainter {
       linePaint,
     );
 
-    // Draw dots (pushed out towards outer radar rings & clear glowing effect)
     for (var dot in dots) {
       final dotAngle = dot.angle;
       double currentSweepAngle = (progress * 2 * math.pi) % (2 * math.pi);
@@ -75,7 +70,6 @@ class RadarPainter extends CustomPainter {
       double angleDiff = (currentSweepAngle - normalizedDotAngle);
       if (angleDiff < 0) angleDiff += 2 * math.pi;
       
-      // Gentle persistent glow when sweep passes over
       final opacity = math.max(0.30, (1.0 - (angleDiff / (math.pi * 1.2))).clamp(0.0, 1.0));
 
       final dotOffset = Offset(
@@ -83,14 +77,12 @@ class RadarPainter extends CustomPainter {
         center.dy + radius * dot.distance * math.sin(dotAngle),
       );
 
-      // Core glowing blip
       canvas.drawCircle(
         dotOffset,
         dot.size,
         Paint()..color = color.withValues(alpha: opacity)..style = PaintingStyle.fill,
       );
 
-      // Outer aura halo
       canvas.drawCircle(
         dotOffset,
         dot.size * 2.2,

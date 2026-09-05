@@ -27,16 +27,14 @@ class _StationMapViewState extends State<StationMapView> {
   List<EventHotspot> _eventHotspots = [];
   Set<Marker> _markers = {};
   bool _isLoading = true;
-  String _selectedFilter = 'ALL'; // 'ALL', 'LRT', 'MRT', 'EVENTS'
+  String _selectedFilter = 'ALL';
 
-  // Default initial camera position (Kuala Lumpur Center or passed target)
   late CameraPosition _initialCameraPosition;
 
   @override
   void initState() {
     super.initState();
 
-    // 🎯 If opened from an Event, automatically filter to ONLY show Event Hotspots
     if (widget.targetEvent != null || widget.initialTarget != null) {
       _selectedFilter = 'EVENTS';
     }
@@ -67,7 +65,6 @@ class _StationMapViewState extends State<StationMapView> {
         _isLoading = false;
       });
 
-      // Auto-popup details if opened for a specific event
       if (widget.targetEvent != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _showEventDetails(widget.targetEvent!);
@@ -80,7 +77,6 @@ class _StationMapViewState extends State<StationMapView> {
   void _updateMarkers() {
     final Set<Marker> markers = {};
 
-    // 1. Add Transit Stations
     if (_selectedFilter == 'ALL' || _selectedFilter == 'LRT' || _selectedFilter == 'MRT') {
       final filteredStations = _transitStations.where((station) {
         if (_selectedFilter == 'LRT') return station.type == StationType.lrt;
@@ -98,7 +94,6 @@ class _StationMapViewState extends State<StationMapView> {
       );
     }
 
-    // 2. Add Event Hotspots (e.g. Serimas Condo • Pearl Tower)
     if (_selectedFilter == 'ALL' || _selectedFilter == 'EVENTS') {
       for (final event in _eventHotspots) {
         markers.add(

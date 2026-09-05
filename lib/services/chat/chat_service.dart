@@ -160,8 +160,6 @@ class ChatService {
       message.toFirestore(),
     );
 
-    // Participants were created by MatchService. Do not rewrite the list
-    // here because Firestore list equality is order-sensitive.
     batch.update(
       _chatReference(chatId),
       {
@@ -339,7 +337,6 @@ class ChatService {
       message.toFirestore(),
     );
 
-    // Keep the original participants list unchanged.
     batch.update(
       _chatReference(chatId),
       {

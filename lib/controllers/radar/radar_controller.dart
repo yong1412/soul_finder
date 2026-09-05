@@ -22,7 +22,6 @@ class RadarController extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // 💾 Static memory cache storing loaded stay stats per user UID
   static final Map<String, Map<String, StationStayRecord>> _userStayStatsCache = {};
   static final Map<String, List<VisitRecord>> _userRecentStationsCache = {};
 
@@ -31,17 +30,17 @@ class RadarController extends ChangeNotifier {
   Position? currentPosition;
   bool isLocationLoaded = false;
   bool isScanning = false;
-  bool isHistoryLoaded = false; // 🔒 Guard flag
+  bool isHistoryLoaded = false;
   int soulsFound = 0;
   Station? currentStationHotspot;
   double? minDistanceToStation;
   Station? nearestStation;
-  double radarRadius = 200.0; // Default to 200m
+  double radarRadius = 200.0;
   final List<VisitRecord> recentStations = [];
   final Map<String, StationStayRecord> stationStayStats = {};
 
   StreamSubscription<Position>? _positionSubscription;
-  Timer? _stayTimer; // ⏰ Periodic timer to update stay duration while stationary at hotspot
+  Timer? _stayTimer;
 
   List<StationStayRecord> get topStayStations {
     final list = stationStayStats.values.toList();

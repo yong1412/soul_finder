@@ -892,7 +892,6 @@ class UserDashboardView extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // 🟢 Public Status Pill Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
@@ -940,7 +939,6 @@ class UserDashboardView extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // 3 Vibrant High-End Stats Cards: Matches, Near You, Views
           Row(
             children: [
               _buildStatCard(
@@ -973,7 +971,6 @@ class UserDashboardView extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Height & Weight Card (if specified)
           if (user.heightCm != null || user.weightKg != null) ...[
             Container(
               width: double.infinity,
@@ -1045,7 +1042,6 @@ class UserDashboardView extends StatelessWidget {
               crossAxisAlignment:
               CrossAxisAlignment.start,
               children: [
-                // Interests
                 Row(
                   children: [
                     Icon(
@@ -1093,7 +1089,6 @@ class UserDashboardView extends StatelessWidget {
             ),
             child: Column(
               children: [
-                // Edit Profile
                 ListTile(
                   leading: Container(
                     padding:
@@ -1134,7 +1129,6 @@ class UserDashboardView extends StatelessWidget {
                   height: 1,
                 ),
 
-                // 🕵️‍♂️ Incognito Mode Switch
                 SwitchListTile(
                   secondary: Container(
                     padding: const EdgeInsets.all(8),
@@ -1179,7 +1173,6 @@ class UserDashboardView extends StatelessWidget {
                   height: 1,
                 ),
 
-                // 🔒 Profile Private Mode Settings
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(8),

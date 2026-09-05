@@ -27,10 +27,8 @@ class GeocodingResult {
 }
 
 class GeocodingService {
-  // In-memory cache for fast reverse geocoding lookups
   static final Map<String, GeocodingResult> _cache = {};
 
-  /// Reverse Geocode: Convert Latitude & Longitude to Human Readable LRT/MRT Station Address
   Future<GeocodingResult?> reverseGeocode(double lat, double lng) async {
     final cacheKey = "${lat.toStringAsFixed(3)},${lng.toStringAsFixed(3)}";
     if (_cache.containsKey(cacheKey)) {
@@ -70,7 +68,6 @@ class GeocodingService {
     return null;
   }
 
-  /// Forward Geocode: Search LRT/MRT Station by Name -> Lat & Lng
   Future<Map<String, double>?> searchStationCoordinates(String stationName) async {
     final query = Uri.encodeComponent("$stationName station Malaysia");
     final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1');

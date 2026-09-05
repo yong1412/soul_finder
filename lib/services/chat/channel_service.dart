@@ -128,7 +128,6 @@ class ChannelService {
 
     batch.set(messageRef, message.toFirestore());
     
-    // Update channel summary
     final String lastMessageText = type == MessageType.image 
         ? "Sent a photo 📷" 
         : (type == MessageType.video ? "Sent a video 🎥" : text);
@@ -144,7 +143,6 @@ class ChannelService {
     await batch.commit();
   }
 
-  /// Seeds initial interest channels if they don't exist
   Future<void> initializeInterestChannels() async {
     final channels = [
       {
@@ -179,7 +177,6 @@ class ChannelService {
           });
         }
       } catch (e) {
-        // Skip if no permission to initialize (already exists or rules prevent)
         continue;
       }
     }

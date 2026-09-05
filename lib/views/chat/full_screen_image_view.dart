@@ -26,9 +26,9 @@ class FullScreenImageView extends StatelessWidget {
       ),
       body: SizedBox.expand(
         child: InteractiveViewer(
-          minScale: 1.0, // Changed from 0.5 to keep it full by default
+          minScale: 1.0,
           maxScale: 4.0,
-          clipBehavior: Clip.none, // Allow zooming without clipping if needed
+          clipBehavior: Clip.none,
           child: heroTag != null
               ? Hero(
                   tag: heroTag!,
@@ -43,7 +43,6 @@ class FullScreenImageView extends StatelessWidget {
   Widget _buildImage(BuildContext context) {
     final size = MediaQuery.of(context).size;
     
-    // Check if the URL is actually a base64 string
     if (imageUrl.startsWith('data:image') || !imageUrl.startsWith('http')) {
       try {
         final base64String = imageUrl.contains(',') 

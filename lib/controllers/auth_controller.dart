@@ -140,7 +140,6 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     final uid = _currentUser?.uid;
     if (uid != null && uid.isNotEmpty) {
-      // ⚪ Mark user as OFFLINE in Firestore BEFORE signing out!
       try {
         await _service.updateOnlineStatusDirect(uid, false);
       } catch (e) {

@@ -46,7 +46,6 @@ class LocationService {
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: settings,
     ).listen((position) async {
-      // Coarse location protects privacy while remaining useful for distance.
       final latitude = _roundCoordinate(position.latitude);
       final longitude = _roundCoordinate(position.longitude);
 
