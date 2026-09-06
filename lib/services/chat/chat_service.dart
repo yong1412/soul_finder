@@ -13,6 +13,7 @@ class ChatPreview {
     required this.lastMessage,
     required this.lastMessageType,
     required this.unreadCount,
+    this.isMuted = false,
     this.lastMessageAt,
   });
 
@@ -23,6 +24,7 @@ class ChatPreview {
   final String lastMessage;
   final String lastMessageType;
   final int unreadCount;
+  final bool isMuted;
   final DateTime? lastMessageAt;
 }
 
@@ -112,15 +114,42 @@ class ChatService {
     );
   }
 
+  Stream<Map<String, dynamic>?> watchChatDoc(String targetUserUid) {
+    final chatId = createChatId(currentUserUid, targetUserUid);
+    return _chatReference(chatId).snapshots().map((doc) => doc.data());
+  }
+
+  Future<void> editTextMessage(ChatMessage message, String newText) async {
+    final uid = currentUserUid;
+    if (message.senderUid != uid) {
+      throw const ChatException('You can only edit your own messages.');
+    }
+
+    final trimmed = newText.trim();
+    if (trimmed.isEmpty) return;
+
+    await _messageCollection(message.chatId).doc(message.id).update({
+      'text': trimmed,
+      'isEdited': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    final chatDoc = await _chatReference(message.chatId).get();
+    if (chatDoc.exists) {
+      final chatData = chatDoc.data();
+      if (chatData != null && chatData['lastSenderUid'] == uid) {
+        await _chatReference(message.chatId).update({
+          'lastMessage': trimmed,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+
   Future<void> deleteMessage(ChatMessage message) async {
     final uid = currentUserUid;
     if (message.senderUid != uid) {
       throw const ChatException('You can only delete your own messages.');
-    }
-
-    final createdAt = message.createdAt ?? DateTime.now();
-    if (DateTime.now().difference(createdAt).inSeconds > 180) {
-      throw const ChatException('Messages can only be deleted within 3 minutes of sending.');
     }
 
     await _messageCollection(message.chatId).doc(message.id).delete();
@@ -214,6 +243,54 @@ class ChatService {
         'chatId': chatId,
         'lastMessage': lastMsgText,
         'lastMessageType': type.name,
+        'lastSenderUid': currentUid,
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'unreadCounts.$targetUserUid': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+    );
+
+    await batch.commit();
+  }
+
+  Future<void> sendVoiceMessage({
+    required String targetUserUid,
+    required String mediaUrl,
+    required int durationSeconds,
+  }) async {
+    final currentUid = currentUserUid;
+    await _checkActiveMatch(targetUserUid);
+
+    final chatId = createChatId(currentUid, targetUserUid);
+    final messageReference = _messageCollection(chatId).doc();
+
+    final lastMsgText = '🎙️ Voice note (${durationSeconds}s)';
+
+    final message = ChatMessage(
+      id: messageReference.id,
+      chatId: chatId,
+      senderUid: currentUid,
+      receiverUid: targetUserUid,
+      type: ChatMessageType.voice,
+      text: lastMsgText,
+      mediaUrl: mediaUrl,
+      status: MeetingProposalStatus.none,
+      acceptedBy: const [],
+    );
+
+    final batch = _firestore.batch();
+
+    batch.set(
+      messageReference,
+      message.toFirestore(),
+    );
+
+    batch.update(
+      _chatReference(chatId),
+      {
+        'chatId': chatId,
+        'lastMessage': lastMsgText,
+        'lastMessageType': 'voice',
         'lastSenderUid': currentUid,
         'lastMessageAt': FieldValue.serverTimestamp(),
         'unreadCounts.$targetUserUid': FieldValue.increment(1),
@@ -528,6 +605,8 @@ class ChatService {
 
         final userData = userSnapshot.data();
         final timestamp = data['lastMessageAt'] as Timestamp?;
+        final mutedBy = data['mutedBy'];
+        final isMuted = mutedBy is Map && (mutedBy[currentUid] == true);
 
         previews.add(
           ChatPreview(
@@ -542,6 +621,7 @@ class ChatService {
             lastMessageType:
             data['lastMessageType'] as String? ?? 'text',
             unreadCount: _unreadCountFromData(data, currentUid),
+            isMuted: isMuted,
             lastMessageAt: timestamp?.toDate(),
           ),
         );
@@ -555,6 +635,16 @@ class ChatService {
 
       return previews;
     }).asBroadcastStream();
+  }
+
+  Future<void> toggleMuteChat(String targetUserUid, bool mute) async {
+    final currentUid = currentUserUid;
+    final chatId = createChatId(currentUid, targetUserUid);
+    await _chatReference(chatId).set({
+      'mutedBy': {
+        currentUid: mute,
+      },
+    }, SetOptions(merge: true));
   }
 
   Stream<int> watchTotalUnreadCount() {

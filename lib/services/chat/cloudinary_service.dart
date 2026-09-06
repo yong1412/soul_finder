@@ -6,14 +6,23 @@ class CloudinaryService {
   static const String _cloudName = 'dghpgiqr'; 
   static const String _uploadPreset = 'Soul_Finder';
 
-  static Future<String> uploadMedia(XFile file, {bool isVideo = false}) async {
-    final String resourceType = isVideo ? 'video' : 'image';
+  static Future<String> uploadMedia(XFile file, {bool isVideo = false, bool isAudio = false}) async {
+    final String resourceType = (isVideo || isAudio) ? 'video' : 'image';
     final url = Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/$resourceType/upload');
 
     try {
+      final bytes = await file.readAsBytes();
+      final filename = file.name.isNotEmpty ? file.name : 'upload_${DateTime.now().millisecondsSinceEpoch}';
+
       final request = http.MultipartRequest('POST', url)
         ..fields['upload_preset'] = _uploadPreset
-        ..files.add(await http.MultipartFile.fromPath('file', file.path));
+        ..files.add(
+          http.MultipartFile.fromBytes(
+            'file',
+            bytes,
+            filename: filename,
+          ),
+        );
 
       final response = await request.send();
       final responseData = await response.stream.bytesToString();
