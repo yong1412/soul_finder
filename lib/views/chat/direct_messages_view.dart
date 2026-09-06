@@ -98,12 +98,24 @@ class _DirectMessagesViewState extends State<DirectMessagesView> {
                   );
                 },
               ),
-              title: Text(
-                chat.otherUserName,
-                style: TextStyle(
-                  fontWeight: chat.unreadCount > 0 ? FontWeight.w800 : FontWeight.bold,
-                  color: Colors.white,
-                ),
+              title: Row(
+                children: [
+                  Text(
+                    chat.otherUserName,
+                    style: TextStyle(
+                      fontWeight: chat.unreadCount > 0 ? FontWeight.w800 : FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  if (chat.isMuted) ...[
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.notifications_off_outlined,
+                      size: 15,
+                      color: Colors.white38,
+                    ),
+                  ],
+                ],
               ),
               subtitle: Text(
                 chat.lastMessage,
@@ -153,8 +165,84 @@ class _DirectMessagesViewState extends State<DirectMessagesView> {
                   ),
                 );
               },
+              onLongPress: () => _showChatOptions(chat),
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showChatOptions(ChatPreview chat) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(
+                    chat.isMuted ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+                    color: chat.isMuted ? const Color(0xFF38BDF8) : Colors.orangeAccent,
+                  ),
+                  title: Text(
+                    chat.isMuted ? 'Unmute Notifications' : 'Mute Notifications',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    chat.isMuted ? 'Receive alerts for this chat' : 'Silence alerts for ${chat.otherUserName}',
+                    style: const TextStyle(color: Colors.white60),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    try {
+                      await _chatService.toggleMuteChat(chat.otherUserUid, !chat.isMuted);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              !chat.isMuted
+                                  ? 'Muted notifications for ${chat.otherUserName}'
+                                  : 'Unmuted notifications for ${chat.otherUserName}',
+                            ),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString()), backgroundColor: Colors.redAccent),
+                        );
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.chat_bubble_outline, color: Color(0xFF38BDF8)),
+                  title: const Text('Open Conversation', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatConversationView(
+                          targetUserUid: chat.otherUserUid,
+                          targetUserName: chat.otherUserName,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
         );
       },
     );

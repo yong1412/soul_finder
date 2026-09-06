@@ -6,6 +6,7 @@ enum ChatMessageType {
   text,
   image,
   video,
+  voice,
   meetingProposal,
   system,
 }
@@ -30,6 +31,7 @@ class ChatMessage {
     required this.acceptedBy,
     this.mediaUrl,
     this.venue,
+    this.isEdited = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -44,6 +46,7 @@ class ChatMessage {
   final List<String> acceptedBy;
   final String? mediaUrl;
   final MeetingVenue? venue;
+  final bool isEdited;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -60,7 +63,11 @@ class ChatMessage {
       chatId: data['chatId'] as String? ?? '',
       senderUid: data['senderUid'] as String? ?? '',
       receiverUid: data['receiverUid'] as String? ?? '',
-      type: _parseMessageType(data['type'] as String?),
+      type: _parseMessageType(
+        data['type'] as String?,
+        data['mediaUrl'] as String?,
+        data['text'] as String? ?? '',
+      ),
       text: data['text'] as String? ?? '',
       status: _parseProposalStatus(data['status'] as String?),
       acceptedBy: (data['acceptedBy'] as List<dynamic>? ?? [])
@@ -68,6 +75,7 @@ class ChatMessage {
           .toList(),
       mediaUrl: data['mediaUrl'] as String?,
       venue: venueData == null ? null : MeetingVenue.fromJson(venueData),
+      isEdited: data['isEdited'] as bool? ?? false,
       createdAt: createdTimestamp?.toDate(),
       updatedAt: updatedTimestamp?.toDate(),
     );
@@ -84,6 +92,7 @@ class ChatMessage {
       'acceptedBy': acceptedBy,
       if (mediaUrl != null && mediaUrl!.isNotEmpty) 'mediaUrl': mediaUrl,
       if (venue != null) 'venue': venue!.toJson(),
+      if (isEdited) 'isEdited': true,
       'createdAt': createdAt == null
           ? FieldValue.serverTimestamp()
           : Timestamp.fromDate(createdAt!),
@@ -104,6 +113,7 @@ class ChatMessage {
     List<String>? acceptedBy,
     String? mediaUrl,
     MeetingVenue? venue,
+    bool? isEdited,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -118,17 +128,25 @@ class ChatMessage {
       acceptedBy: acceptedBy ?? this.acceptedBy,
       mediaUrl: mediaUrl ?? this.mediaUrl,
       venue: venue ?? this.venue,
+      isEdited: isEdited ?? this.isEdited,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
-  static ChatMessageType _parseMessageType(String? value) {
+  static ChatMessageType _parseMessageType(String? value, String? mediaUrl, String text) {
+    if (value == 'voice' ||
+        (mediaUrl != null && (mediaUrl.contains('voice') || mediaUrl.contains('.mp3'))) ||
+        text.startsWith('🎙️ Voice note')) {
+      return ChatMessageType.voice;
+    }
     switch (value) {
       case 'image':
         return ChatMessageType.image;
       case 'video':
         return ChatMessageType.video;
+      case 'voice':
+        return ChatMessageType.voice;
       case 'meetingProposal':
         return ChatMessageType.meetingProposal;
       case 'system':
