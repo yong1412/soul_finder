@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../services/profile_stats_service.dart';
+import 'package:soul_finder/services/match/profile_stats_service.dart';
 
 class ProfileViewersView extends StatelessWidget {
   ProfileViewersView({super.key});

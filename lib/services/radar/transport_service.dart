@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../../models/radar/radar_models.dart';
+
+import 'package:soul_finder/models/radar/radar_models.dart';
 
 class TransportService {
-  // Replace with your actual Google Maps API Key
   static const String _apiKey = 'AIzaSyCdU2CI4os8Xo6W4P-ePIwE4mc5idrPUQQ';
 
   Future<List<Station>> getNearbyStations(double lat, double lng) async {
@@ -14,8 +15,7 @@ class TransportService {
         "transit_station", 
         "light_rail_station", 
         "subway_station", 
-        "train_station",
-        "bus_station"
+        "train_station"
       ],
       "maxResultCount": 10,
       "locationRestriction": {
@@ -24,7 +24,7 @@ class TransportService {
             "latitude": lat,
             "longitude": lng
           },
-          "radius": 2000.0 // 2km radius
+          "radius": 2000.0
         }
       }
     };
@@ -46,11 +46,9 @@ class TransportService {
         
         return places.map((place) {
           final types = List<String>.from(place['types'] ?? []);
-          StationType type = StationType.bus;
+          StationType type = StationType.lrt;
           
-          if (types.contains('subway_station') || types.contains('light_rail_station')) {
-            type = StationType.lrt;
-          } else if (types.contains('train_station')) {
+          if (types.contains('train_station')) {
             type = StationType.mrt;
           }
 
@@ -63,11 +61,15 @@ class TransportService {
           );
         }).toList();
       } else {
-        print('Places API Error: ${response.statusCode} - ${response.body}');
+        if (kDebugMode) {
+          debugPrint('Places API Error: ${response.statusCode} - ${response.body}');
+        }
         return [];
       }
     } catch (e) {
-      print('Exception fetching places: $e');
+      if (kDebugMode) {
+        debugPrint('Exception fetching places: $e');
+      }
       return [];
     }
   }

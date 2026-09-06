@@ -1,0 +1,43 @@
+import 'package:flutter/material.dart';
+
+import 'package:soul_finder/controllers/auth_controller.dart';
+import 'package:soul_finder/views/chat/channels_view.dart';
+import 'package:soul_finder/views/chat/direct_messages_view.dart';
+
+class ChatListView extends StatelessWidget {
+  const ChatListView({
+    super.key,
+    required this.authController,
+  });
+
+  final AuthController authController;
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          TabBar(
+            indicatorColor: Theme.of(context).colorScheme.primary,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white38,
+            tabs: const [
+              Tab(text: 'Direct Messages'),
+              Tab(text: 'Channels'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                const DirectMessagesView(),
+
+                ChannelsView(authController: authController),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

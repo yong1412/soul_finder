@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../models/user_profile.dart';
+import 'package:soul_finder/models/user_profile.dart';
 
 class ProfileViewerEntry {
   const ProfileViewerEntry({
@@ -114,9 +114,6 @@ class ProfileStatsService {
       return;
     }
 
-    // One deterministic document per viewer gives a unique-view count.
-    // Opening the same profile again updates the time but does not increase
-    // the displayed number.
     await _firestore
         .collection('profileViews')
         .doc(profileUid)

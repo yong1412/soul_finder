@@ -8,6 +8,8 @@ class MeetingVenue {
     required this.longitude,
     required this.mapsUrl,
     this.distanceFromMidpointKm = 0,
+    this.rating = 4.5,
+    this.imageUrl = '',
   });
 
   final String id;
@@ -18,6 +20,8 @@ class MeetingVenue {
   final double longitude;
   final String mapsUrl;
   final double distanceFromMidpointKm;
+  final double rating;
+  final String imageUrl;
 
   factory MeetingVenue.fromJson(Map<String, dynamic> json) {
     return MeetingVenue(
@@ -32,6 +36,8 @@ class MeetingVenue {
           '',
       distanceFromMidpointKm:
       (json['distanceFromMidpointKm'] as num?)?.toDouble() ?? 0,
+      rating: (json['rating'] as num?)?.toDouble() ?? 4.5,
+      imageUrl: json['imageUrl'] as String? ?? '',
     );
   }
 
@@ -45,6 +51,8 @@ class MeetingVenue {
       'longitude': longitude,
       'mapsUrl': mapsUrl,
       'distanceFromMidpointKm': distanceFromMidpointKm,
+      'rating': rating,
+      'imageUrl': imageUrl,
     };
   }
 }
